@@ -81,6 +81,16 @@ This is the canonical capture interface (terminal + Poke). It writes to Notion v
   - `python scripts/capture_tool_request.py "Test item - delete" --desired-outcome "verify capture works" --domain "other" --source terminal`
   - `codex exec "Find the most recent Tool Requests entry with title 'Test item - delete' and archive it."`
 
+### Weekly triage (review + propose)
+- Read-only run (writes nothing):
+  - `python scripts/triage_tool_requests.py`
+- Apply run (updates Status from new -> triaging):
+  - `python scripts/triage_tool_requests.py --apply`
+- Adjust scoring weights:
+  - `python scripts/triage_tool_requests.py --impact-weight 1.0 --frequency-weight 1.5 --recency-weight 0.5`
+- Output:
+  - Report saved to `memory/triage/YYYY-MM-DD.md`
+
 ## 5) Google Workspace MCP (`mcp-gsuite-enhanced`)
 Repository location: `mcp-gsuite-enhanced/` (from this repo root).
 
