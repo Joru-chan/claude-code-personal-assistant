@@ -67,16 +67,19 @@ token.json
 archive/email_summaries/*
 archive/newsletter_digests/*
 archive/daily_schedules/*
+archive/daily_logs/*
 archive/standup_notes/*
 !archive/email_summaries/.gitkeep
 !archive/newsletter_digests/.gitkeep
 !archive/daily_schedules/.gitkeep
+!archive/daily_logs/.gitkeep
 !archive/standup_notes/.gitkeep
 
 # Daily generated files (root level)
 email_summaries_*.md
 newsletter_digest_*.md
 daily_schedule_*.md
+daily_log_*.md
 standup_notes_*.md
 
 # Sprint files
@@ -93,6 +96,9 @@ node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# External MCP repo (local only)
+mcp-gsuite-enhanced/
 
 # Jupyter Notebooks
 .ipynb_checkpoints/
@@ -119,3 +125,11 @@ private/
 *.pem
 *.crt
 *.p12
+# Local credentials / secrets (Codex + MCP)
+.gauth.json
+.ga*.json
+.accounts.json
+.oauth2.*.json
+*.secret.*
+.env
+.env.*

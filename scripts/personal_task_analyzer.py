@@ -8,7 +8,7 @@ Usage:
     report = analyze_personal_tasks()
     print(report)
 
-Database ID: [YOUR_PERSONAL_TASKS_DATABASE_ID]
+Database ID: 2e85ae60-7903-8103-a2b5-f3961e369cfb
 """
 
 import os
@@ -25,7 +25,7 @@ class TaskAnalyzer:
     """Analyzes personal tasks and generates actionable reports."""
 
     # Class constants
-    DATABASE_ID = "[YOUR_PERSONAL_TASKS_DATABASE_ID]"
+    DATABASE_ID = "2e85ae60-7903-8103-a2b5-f3961e369cfb"
     PRIORITY_EMOJIS = {
         "High": "🔴",
         "Critical": "🚨",
@@ -76,7 +76,7 @@ class TaskAnalyzer:
 
         # Extract due date
         due_date = self._extract_date_property(
-            properties, ["Due date", "Date", "Deadline"]
+            properties, ["Due Date", "Due date", "Date", "Deadline"]
         )
 
         # Extract priority
@@ -88,7 +88,7 @@ class TaskAnalyzer:
         )
 
         # Extract effort level
-        effort = self._extract_select_property(properties, ["Effort level"])
+        effort = self._extract_select_property(properties, ["Effort", "Effort level"])
 
         # Extract description
         description = self._extract_richtext_property(properties, ["Description"])
@@ -118,6 +118,9 @@ class TaskAnalyzer:
         status_prop = properties.get("Status", {})
         if status_prop.get("type") == "status" and status_prop.get("status"):
             status_name = status_prop["status"]["name"].lower()
+            return status_name in ["done", "complete", "completed", "finished"]
+        if status_prop.get("type") == "select" and status_prop.get("select"):
+            status_name = status_prop["select"]["name"].lower()
             return status_name in ["done", "complete", "completed", "finished"]
         return False
 
@@ -149,6 +152,8 @@ class TaskAnalyzer:
             prop = properties.get(prop_name, {})
             if prop.get("type") == "multi_select":
                 return [tag["name"] for tag in prop.get("multi_select", [])]
+            if prop.get("type") == "select" and prop.get("select"):
+                return [prop["select"]["name"]]
         return []
 
     def _extract_richtext_property(

@@ -1,4 +1,5 @@
 # Sprint Planning - Week [#]
+> Legacy: This work-focused template is kept for reference. Use `templates/weekly_planning_template.md` for the personal workflow.
 **Date Range**: [Start Date] - [End Date]  
 **Sprint ID**: [Sprint ID from Notion]  
 **Planning Date**: Tuesday, [Date]

@@ -1,12 +1,9 @@
 #!/usr/bin/env python3
 """
-Work Task Manager - Notion Integration
-Analyzes work tasks from Notion TODO database and generates reports.
+Legacy Work Task Manager (Deprecated)
 
-Usage:
-    python work_task_analyzer.py
-
-Database ID: [YOUR_WORK_TASK_DATABASE_ID] (TODO Database)
+This repository is now personal-focused. This script is kept for reference
+only and is not wired to any active Notion databases.
 """
 
 import os
@@ -22,12 +19,12 @@ load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 class WorkTaskAnalyzer:
     """Analyzes work tasks and generates actionable reports."""
 
-    # Class constants
-    TODO_DATABASE_ID = "[YOUR_WORK_TASK_DATABASE_ID]"
-    ALL_SPRINTS_DATABASE_ID = "[YOUR_ALL_SPRINTS_DATABASE_ID]"
-    MEETINGS_DATABASE = "[YOUR_MEETINGS_DATABASE_ID]"
-    YOUR_NAME_USER_ID = "[YOUR_NOTION_USER_ID]"
-    TEAM_MEMBER_USER_ID = "[TEAM_MEMBER_NOTION_USER_ID]"
+    # Class constants (legacy placeholders)
+    TODO_DATABASE_ID = ""
+    ALL_SPRINTS_DATABASE_ID = ""
+    MEETINGS_DATABASE = ""
+    YOUR_NAME_USER_ID = ""
+    TEAM_MEMBER_USER_ID = ""
 
     TAG_EMOJIS = {
         "Build": "🛠️",
@@ -42,6 +39,9 @@ class WorkTaskAnalyzer:
     }
 
     def __init__(self):
+        raise RuntimeError(
+            "Deprecated: use scripts/personal_task_analyzer.py for personal tasks."
+        )
         self.today = datetime.now().date()
         self.tomorrow = self.today + timedelta(days=1)
         self.week_end = self.today + timedelta(days=7)
