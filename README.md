@@ -11,7 +11,7 @@ This repository configures Codex CLI as a personal assistant with Notion and Goo
 
 ## Quick Start
 1. Follow `SETUP_CODEX.md`.
-2. Open `CLAUDE.md` to adjust workflows and database IDs if needed.
+2. Open `CLAUDE.md` to adjust workflows; use `profile.md` and `SETUP_CODEX.md` for IDs and integration config.
 3. Run Codex with this repo as the working directory.
 
 ## Notion Structure (Personal)
