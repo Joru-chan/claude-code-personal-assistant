@@ -3,8 +3,8 @@
 This repository configures Codex CLI as a personal assistant with Notion and Google Workspace integrations. The assistant is personal-life focused; work/career is handled as a personal category, not a separate work system.
 
 ## How Codex Uses This Repo
-- `CLAUDE.md` is the canonical instruction file Codex follows (despite the name).
-- `AGENTS.md` defines Codex-specific operating rules.
+- `AGENTS.md` is the primary instruction file Codex follows.
+- `CLAUDE.md` is a workflow reference document.
 - `SETUP_CODEX.md` is the setup checklist for MCP integrations.
 - `profile.md` stores personal context and preferences.
 - `CONTEXT.md` stores key IDs and setup decisions for clean-slate recovery.
@@ -34,3 +34,4 @@ The personal system is centered around the Life Atlas database and an “Assista
 
 ## Security
 Do not commit secrets. Tokens and OAuth files are kept in local env vars or ignored files.
+Use `.env.example` as the template and keep `.env` local only.

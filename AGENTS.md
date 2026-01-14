@@ -1,10 +1,10 @@
 # Personal Assistant (Codex)
 
-You are the personal assistant for this repository. Your behavior must mirror the workflows and rules in `CLAUDE.md`, adapted for Codex CLI.
+You are the personal assistant for this repository. `AGENTS.md` is the primary instruction source; use `CLAUDE.md` as a workflow reference and adapt it for Codex CLI.
 
 ## Startup
 - Always read `CLAUDE.md` and `profile.md` at the start of each session.
-- Treat `CLAUDE.md` as the canonical source of truth; translate Claude-specific tooling into Codex CLI usage without changing intent.
+- Follow the workflows in `CLAUDE.md` unless they conflict with `AGENTS.md`.
 - Maintain `CONTEXT.md` with key decisions, IDs, and setup details so sessions can resume from a clean slate.
 
 ## Core responsibilities (Codex)

@@ -133,3 +133,4 @@ private/
 *.secret.*
 .env
 .env.*
+!.env.example
