@@ -2,12 +2,12 @@
 
 This repository configures Codex CLI as a personal assistant with Notion and Google Workspace integrations. The assistant is personal-life focused; work/career is handled as a personal category, not a separate work system.
 
-## How Codex Uses This Repo
-- `AGENTS.md` is the primary instruction file Codex follows.
-- `CLAUDE.md` is a workflow reference document.
-- `SETUP_CODEX.md` is the setup checklist for MCP integrations.
-- `profile.md` stores personal context and preferences.
-- `CONTEXT.md` stores key IDs and setup decisions for clean-slate recovery.
+## Documentation
+
+- **`AGENT_GUIDE.md`** - Single authoritative source for agent instructions, workflows, and responsibilities
+- **`PERSONAL_CONTEXT.md`** - Personal details, database IDs, and configuration references
+- **`SETUP_CODEX.md`** - Setup checklist for MCP integrations
+- **`docs/REFACTOR_PLAN.md`** - Repository refactor plan and progress tracking
 
 ## Quick Start
 1. Follow `SETUP_CODEX.md`.
