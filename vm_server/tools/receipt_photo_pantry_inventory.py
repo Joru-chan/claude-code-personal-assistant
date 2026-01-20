@@ -211,6 +211,79 @@ def _dedupe_items(items: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], Li
     return deduped, duplicates
 
 
+    return None, 0.0
+
+
+async def _update_item_quantity(
+    client: httpx.AsyncClient,
+    token: str,
+    page_id: str,
+    existing_page: Dict[str, Any],
+    new_quantity: float,
+    property_map: Dict[str, str],
+    item_data: Dict[str, Any],
+    errors: List[str]
+) -> Dict[str, Any] | None:
+    """
+    Update existing pantry item with new quantity and price history.
+    Returns updated page or None on error.
+    """
+    from datetime import datetime
+    
+    properties = existing_page.get("properties", {})
+    
+    # Get existing quantity
+    qty_prop = property_map.get("quantity", "Quantity")
+    existing_qty = 0.0
+    if qty_prop in properties:
+        qty_data = properties[qty_prop]
+        if qty_data.get("type") == "number":
+            existing_qty = qty_data.get("number", 0.0) or 0.0
+    
+    # Calculate new quantity
+    updated_qty = existing_qty + new_quantity
+    
+    # Build update payload
+    update_props: Dict[str, Any] = {}
+    
+    # Update quantity
+    update_props[qty_prop] = {"number": updated_qty}
+    
+    # Update price history in notes if price is provided
+    price = item_data.get("price")
+    if price:
+        notes_prop = property_map.get("notes", "Notes")
+        existing_notes = None
+        if notes_prop in properties:
+            notes_data = properties[notes_prop]
+            if notes_data.get("type") == "rich_text":
+                text_array = notes_data.get("rich_text", [])
+                if text_array:
+                    existing_notes = text_array[0].get("plain_text", "")
+        
+        # Append price to history
+        store = item_data.get("store", "Unknown")
+        date = item_data.get("purchase_date", datetime.utcnow().strftime("%Y-%m-%d"))
+        updated_notes = _append_price_to_notes(existing_notes, price, date, store)
+        
+        update_props[notes_prop] = {
+            "rich_text": [{"text": {"content": updated_notes}}]
+        }
+    
+    # Send update request
+    resp = await client.patch(
+        f"{NOTION_API_BASE}/pages/{page_id}",
+        headers=_headers(token),
+        json={"properties": update_props}
+    )
+    
+    if resp.status_code >= 400:
+        errors.append(f"Failed to update item: {_notion_error_message(resp)}")
+        return None
+    
+    return resp.json()
+
+
 def _title_property_name(properties: Dict[str, Any]) -> str | None:
     for name, prop in properties.items():
         if prop.get("type") == "title":
@@ -276,6 +349,56 @@ async def _query_by_title(
     if resp.status_code >= 400:
         return []
     return resp.json().get("results", [])
+
+
+async def _query_all_items(
+    client: httpx.AsyncClient, token: str, db_id: str
+) -> List[Dict[str, Any]]:
+    """Query all items from pantry database for fuzzy matching"""
+    resp = await client.post(
+        f"{NOTION_API_BASE}/databases/{db_id}/query",
+        headers=_headers(token),
+        json={"page_size": 100}  # Get up to 100 items
+    )
+    if resp.status_code >= 400:
+        return []
+    return resp.json().get("results", [])
+
+
+async def _find_fuzzy_match(
+    client: httpx.AsyncClient,
+    token: str,
+    db_id: str,
+    title_prop: str,
+    item_name: str,
+    threshold: float = 0.7
+) -> tuple[Dict[str, Any] | None, float]:
+    """
+    Find best fuzzy match for item_name in database.
+    Returns (matched_page, score) or (None, 0.0) if no good match.
+    """
+    all_items = await _query_all_items(client, token, db_id)
+    
+    best_match = None
+    best_score = 0.0
+    
+    for page in all_items:
+        # Extract title from page
+        title_data = page.get("properties", {}).get(title_prop, {})
+        if title_data.get("type") == "title":
+            title_array = title_data.get("title", [])
+            if title_array:
+                existing_name = title_array[0].get("plain_text", "")
+                score = _fuzzy_match_score(item_name, existing_name)
+                
+                if score > best_score:
+                    best_score = score
+                    best_match = page
+    
+    if best_score >= threshold:
+        return best_match, best_score
+    
+    return None, 0.0
 
 
 def _preview_payloads(
@@ -381,6 +504,7 @@ def register(mcp: FastMCP) -> None:
             }
 
         created: List[Dict[str, Any]] = []
+        updated: List[Dict[str, Any]] = []
         skipped_existing: List[Dict[str, Any]] = []
         missing_properties: List[str] = []
         preview_errors: List[str] = []
@@ -416,12 +540,39 @@ def register(mcp: FastMCP) -> None:
             for entry in preview:
                 item = entry["item"]
                 name = item.get("name", "")
+                quantity = item.get("quantity", 1) or 1
+                
                 if check_existing:
-                    existing = await _query_by_title(client, token, db_id, title_prop, name)
-                    if existing:
-                        skipped_existing.append(item)
-                        continue
+                    # Try fuzzy matching first
+                    matched_page, score = await _find_fuzzy_match(
+                        client, token, db_id, title_prop, name, threshold=0.7
+                    )
+                    
+                    if matched_page:
+                        # Found a match - update quantity instead of creating
+                        page_id = matched_page["id"]
+                        updated_page = await _update_item_quantity(
+                            client, token, page_id, matched_page, 
+                            quantity, property_map, item, errors
+                        )
+                        
+                        if updated_page:
+                            matched_name = ""
+                            title_data = matched_page.get("properties", {}).get(title_prop, {})
+                            if title_data.get("title"):
+                                matched_name = title_data["title"][0].get("plain_text", "")
+                            
+                            updated.append({
+                                "id": page_id,
+                                "url": matched_page.get("url"),
+                                "name": name,
+                                "matched_with": matched_name,
+                                "match_score": round(score, 2),
+                                "quantity_added": quantity
+                            })
+                            continue
 
+                # No match found - create new item
                 payload = {
                     "parent": {"database_id": db_id},
                     "properties": entry["properties"],
@@ -440,6 +591,8 @@ def register(mcp: FastMCP) -> None:
                 )
 
         summary_parts.append(f"Created {len(created)} item(s) in Notion.")
+        if updated:
+            summary_parts.append(f"Updated {len(updated)} existing item(s).")
         if skipped_existing:
             summary_parts.append(
                 f"Skipped {len(skipped_existing)} existing item(s) by title."
@@ -455,6 +608,7 @@ def register(mcp: FastMCP) -> None:
                 "items": deduped,
                 "duplicates": duplicates,
                 "created": created,
+                "updated": updated,
                 "skipped_existing": skipped_existing,
                 "property_map": property_map,
                 "apply_ready": True,
@@ -462,7 +616,7 @@ def register(mcp: FastMCP) -> None:
                 "ran_at": datetime.utcnow().isoformat() + "Z",
             },
             "next_actions": [
-                "Review created items in Notion.",
+                "Review created/updated items in Notion.",
                 "Adjust property map via PANTRY_PROP_* env vars if needed.",
             ],
             "errors": errors,
