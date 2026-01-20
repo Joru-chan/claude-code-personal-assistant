@@ -570,6 +570,11 @@ def register(mcp: FastMCP) -> None:
                 item = entry["item"]
                 name = item.get("name", "")
                 quantity = item.get("quantity", 1) or 1
+                # Ensure quantity is a number
+                try:
+                    quantity = float(quantity)
+                except (ValueError, TypeError):
+                    quantity = 1.0
                 category = item.get("category")  # Get category for filtering
                 
                 if check_existing:
