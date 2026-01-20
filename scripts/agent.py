@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from prefs import load_prefs, save_prefs
+from common.prefs import load_prefs, save_prefs
 from fetch_tool_requests import fetch_candidates
 from llm_decider import decide as llm_decide
 from tool_request_scoring import score_candidate

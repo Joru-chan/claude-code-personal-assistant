@@ -23,7 +23,7 @@ try:
 except ImportError:  # pragma: no cover - optional dependency
     load_dotenv = None
 
-from utils.progress import print_ok, print_warn, run_command
+from common.progress import print_ok, print_warn, run_command
 
 QUEUE_PATH = Path("memory/tool_requests_queue.jsonl")
 CONTEXT_PATH = Path("CONTEXT.md")

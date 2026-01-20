@@ -109,7 +109,7 @@ def _read_db_id() -> str | None:
 
 
 def _run_codex(prompt: str, *, label: str, verbose: bool, progress: bool) -> str:
-    from utils.progress import run_command
+    from common.progress import run_command
 
     try:
         returncode, output = run_command(

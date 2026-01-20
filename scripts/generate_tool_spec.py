@@ -33,7 +33,7 @@ def _load_env() -> None:
 
 
 def _run_codex(prompt: str, *, label: str) -> str:
-    from utils.progress import run_command
+    from common.progress import run_command
 
     try:
         returncode, output = run_command(
