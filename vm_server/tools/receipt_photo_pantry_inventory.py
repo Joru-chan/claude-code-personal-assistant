@@ -446,6 +446,20 @@ def register(mcp: FastMCP) -> None:
         Parse a receipt text (or structured items) into pantry inventory entries.
         Read-only by default; set dry_run=false and confirm=true to write.
         """
+        # DEBUG: Log incoming request
+        import json as json_lib
+        import sys
+        debug_data = {
+            "receipt_text": receipt_text[:100] if receipt_text else None,
+            "items_count": len(items) if items else 0,
+            "items": items,
+            "store": store,
+            "purchase_date": purchase_date,
+            "dry_run": dry_run,
+            "confirm": confirm,
+        }
+        print(f"[DEBUG PANTRY TOOL] Incoming request: {json_lib.dumps(debug_data, indent=2)}", file=sys.stderr, flush=True)
+        
         errors: List[str] = []
         if not receipt_text and not items:
             errors.append("Provide receipt_text or items.")
