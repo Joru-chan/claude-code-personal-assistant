@@ -80,10 +80,49 @@ Every session, the agent should:
 - Keep the taxonomy current and useful
 
 ### 8. Tool Development Workflow
-- Capture friction points in Tool Requests database
-- Triage weekly to identify high-impact items
-- Generate specs, scaffold tools, deploy to VM
-- Use auto-deployment via git push
+
+**Simple workflow for building tools:**
+
+1. **User captures friction** in Notion Tool Requests database (via Poke, terminal, or manually)
+
+2. **User syncs tool requests to local JSON:**
+   ```bash
+   python3 scripts/sync_tool_requests.py
+   ```
+   This downloads all tool requests from Notion to `memory/tool_requests.json`
+
+3. **User asks agent to pick and build a tool:**
+   ```
+   "Pick a high-value tool request and build it"
+   "What should we build next?"
+   ```
+
+4. **Agent (you) should:**
+   - Read `memory/tool_requests.json`
+   - Analyze tool requests by:
+     * Impact: high > medium > low
+     * Frequency: daily/many-times-per-day > weekly > once
+     * Status: new or triaging (skip shipped/won't-do)
+     * Recency: newer requests may indicate current pain
+   - Pick the highest-value candidate
+   - Generate a tool specification directly (no script needed):
+     * Tool name and purpose
+     * Input parameters
+     * Expected output (following standard response contract)
+     * Implementation approach
+   - Create the tool in `vm_server/tools/`
+   - Register it in `vm_server/tools/registry.py`
+   - Commit and push (triggers auto-deployment)
+   - Test with `./vm/mcp_curl.sh tool_name '{}'`
+   - Update the Notion entry status to "shipped" via agent.py
+
+**Agent scoring guidance:**
+- High impact + daily frequency = top priority
+- Medium impact + daily frequency = high priority
+- Low impact or "once" frequency = lower priority
+- Look for patterns: multiple requests for similar functionality
+
+**No separate triage or spec generation scripts needed** - the agent handles this analysis directly when asked.
 
 ---
 
@@ -299,26 +338,22 @@ mcp__notion-mcp__API-post-page({
 
 ### Common Commands
 ```bash
-# Show tool requests
-python scripts/agent.py "show tool requests"
+# Sync tool requests from Notion
+python3 scripts/sync_tool_requests.py
 
-# Search for specific item
-python scripts/agent.py "search wishes for calendar conflicts"
+# Capture new friction point
+python3 scripts/tool_requests.py capture "Annoyed by X"
 
-# Pick what to build next
-python scripts/agent.py "what should we build next?"
-
-# Deploy to VM
-python scripts/agent.py "deploy latest changes to the VM" --execute
-
-# Capture a friction point
-python scripts/capture_tool_request.py "Annoyed by calendar invite spam"
+# Ask agent to build a tool
+# (Agent reads memory/tool_requests.json, picks one, builds it)
+"Pick a high-value tool request and build it"
+"What should we build next?"
 
 # Notion editing (preview)
-python scripts/agent.py "In Notion, change title 'Old' to 'New'"
+python3 scripts/agent.py "In Notion, change title 'Old' to 'New'"
 
 # Notion editing (apply)
-python scripts/agent.py "In Notion, change title 'Old' to 'New'" --execute
+python3 scripts/agent.py "In Notion, set status shipped for 'my tool'" --execute
 
 # Call MCP tool directly
 ./vm/mcp_curl.sh hello
@@ -332,6 +367,15 @@ python scripts/agent.py "In Notion, change title 'Old' to 'New'" --execute
 ```
 
 ### Typical Workflows
+**Tool development workflow:**
+1. User captures friction in Notion (Poke or manual)
+2. User runs: `python3 scripts/sync_tool_requests.py`
+3. User asks: "What should we build next?"
+4. Agent reads `memory/tool_requests.json`, picks high-value item
+5. Agent generates spec and builds tool
+6. Agent commits and pushes (auto-deploys)
+7. Agent tests and updates Notion status to "shipped"
+
 **Morning routine:**
 1. Check calendar for today
 2. Review pending tasks
@@ -342,13 +386,7 @@ python scripts/agent.py "In Notion, change title 'Old' to 'New'" --execute
 1. Update daily log
 2. Archive daily files
 3. Review tomorrow's calendar
-4. Triage any new tool requests
-
-**Weekly review:**
-1. Run tool request triage
-2. Review projects progress
-3. Check habits tracking
-4. Plan next week
+4. Capture any friction points encountered
 
 ---
 

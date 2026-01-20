@@ -13,6 +13,13 @@ import subprocess
 import sys
 from pathlib import Path
 
+# Load .env file if it exists
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass  # dotenv not installed, skip
+
 
 def check_python_version():
     """Check Python version >= 3.10"""
