@@ -2,10 +2,42 @@
 
 This file documents how to run this assistant from the terminal using Codex CLI.
 
-## 1) Review `CLAUDE.md`
-- [ ] Confirm the workflow reference matches your current personal system.
+## Quick Start (3 steps)
 
-## 2) Prereqs
+1. **Install prerequisites:**
+   ```bash
+   # Install Codex CLI
+   npm i -g @openai/codex
+   
+   # Install Python 3.10+ and create venv (optional)
+   python3 -m venv venv
+   source venv/bin/activate
+   pip install -r requirements.txt
+   ```
+
+2. **Configure environment:**
+   ```bash
+   # Copy template and fill in your values
+   cp .env.template .env
+   # Edit .env with your NOTION_TOKEN
+   ```
+
+3. **Verify setup:**
+   ```bash
+   python3 scripts/verify_setup.py
+   ```
+
+That's it! See below for detailed MCP integration setup.
+
+---
+
+## Detailed Setup Instructions
+
+### 1) Review Documentation
+- [ ] Read `AGENT_GUIDE.md` for workflows and responsibilities
+- [ ] Check `PERSONAL_CONTEXT.md` for database IDs and configuration
+
+### 2) Prerequisites
 - [ ] Install Codex CLI: `npm i -g @openai/codex`
 - [ ] Install Node.js
 - [ ] Install Python 3.13+ and `uv` (required by `mcp-gsuite-enhanced`)
@@ -15,7 +47,7 @@ This file documents how to run this assistant from the terminal using Codex CLI.
   - `source venv/bin/activate`
   - `pip install -r requirements.txt`
 
-## 2.5) Universal router (scripts/agent.py)
+### 2.5) Universal Router (scripts/agent.py)
 This is the single entrypoint for natural language requests.
 
 - List or search tool requests:
@@ -28,7 +60,7 @@ This is the single entrypoint for natural language requests.
 - Deploy to VM (writes, requires `--execute`):
   - `python scripts/agent.py "deploy latest changes to the VM" --execute`
 
-## 3) Notion MCP (`notion-mcp`)
+### 3) Notion MCP (`notion-mcp`)
 - [ ] Set the token in your shell (local only, do not commit):
   - `export NOTION_TOKEN="paste_token_here"`
 - [ ] Add the MCP server (config stored in `~/.codex/config.toml`, shared by CLI + IDE):
@@ -41,7 +73,7 @@ This is the single entrypoint for natural language requests.
   - `codex exec "List my Notion databases"`
 - [ ] Ensure the Life Atlas database is shared with the integration (used as the personal taxonomy).
 
-## 4) Tool Requests / Friction Log backlog (Notion)
+### 4) Tool Requests / Friction Log backlog (Notion)
 
 This backlog captures friction points and automation ideas. Preferred location: under the Life Atlas “Assistant HQ” page.
 
@@ -126,7 +158,7 @@ This is the canonical capture interface (terminal + Poke). It writes to Notion v
 - Optional JSON output:
   - `python scripts/generate_tool_spec.py "Annoyed by calendar invite spam" --format both`
 
-## 5) Google Workspace MCP (`mcp-gsuite-enhanced`)
+### 5) Google Workspace MCP (`mcp-gsuite-enhanced`)
 Repository location: `mcp-gsuite-enhanced/` (from this repo root).
 
 - [ ] Clone if missing:
@@ -151,7 +183,7 @@ Repository location: `mcp-gsuite-enhanced/` (from this repo root).
   - `codex exec "List my calendars"`
   - `codex exec "Show my unread emails"`
 
-## 6) Local task analysis scripts (optional)
+### 6) Local task analysis scripts (optional)
 - [ ] `source venv/bin/activate && python scripts/work_task_analyzer.py`
 - [ ] `source venv/bin/activate && python scripts/personal_task_analyzer.py`
 - [ ] `source venv/bin/activate && python scripts/personal_project_analyzer.py`
