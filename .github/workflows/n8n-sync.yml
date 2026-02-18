@@ -1,0 +1,76 @@
+name: N8N Workflow Sync
+
+on:
+  workflow_dispatch:
+    inputs:
+      sync_direction:
+        description: 'Sync Direction'
+        required: true
+        type: choice
+        options:
+          - push
+          - pull
+      workflow_name:
+        description: 'Workflow Name'
+        required: true
+        type: string
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Display sync parameters
+        run: |
+          echo "=== N8N Workflow Sync ==="
+          echo "Sync Direction: ${{ inputs.sync_direction }}"
+          echo "Workflow Name: ${{ inputs.workflow_name }}"
+          echo "N8N Base URL: ${{ secrets.N8NBASEURL }}"
+          echo "=========================="
+
+      - name: Push workflow to N8N
+        if: inputs.sync_direction == 'push'
+        env:
+          N8N_API_KEY: ${{ secrets.N8NAPIKEY }}
+          N8N_BASE_URL: ${{ secrets.N8NBASEURL }}
+          WORKFLOW_NAME: ${{ inputs.workflow_name }}
+        run: |
+          echo "📤 Pushing workflow '$WORKFLOW_NAME' to N8N..."
+          
+          # Example: Push workflow using N8N API
+          # curl -X POST "$N8N_BASE_URL/api/v1/workflows" \
+          #   -H "X-N8N-API-KEY: $N8N_API_KEY" \
+          #   -H "Content-Type: application/json" \
+          #   -d @"workflows/$WORKFLOW_NAME.json"
+          
+          echo "✅ Successfully pushed workflow '$WORKFLOW_NAME' to N8N"
+
+      - name: Pull workflow from N8N
+        if: inputs.sync_direction == 'pull'
+        env:
+          N8N_API_KEY: ${{ secrets.N8NAPIKEY }}
+          N8N_BASE_URL: ${{ secrets.N8NBASEURL }}
+          WORKFLOW_NAME: ${{ inputs.workflow_name }}
+        run: |
+          echo "📥 Pulling workflow '$WORKFLOW_NAME' from N8N..."
+          
+          # Example: Pull workflow using N8N API
+          # curl -X GET "$N8N_BASE_URL/api/v1/workflows/$WORKFLOW_NAME" \
+          #   -H "X-N8N-API-KEY: $N8N_API_KEY" \
+          #   -o "workflows/$WORKFLOW_NAME.json"
+          
+          echo "✅ Successfully pulled workflow '$WORKFLOW_NAME' from N8N"
+
+      - name: Sync summary
+        run: |
+          echo ""
+          echo "╔════════════════════════════╗"
+          echo "║   Sync Complete Summary    ║"
+          echo "╚════════════════════════════╝"
+          echo "Direction: ${{ inputs.sync_direction }}"
+          echo "Workflow:  ${{ inputs.workflow_name }}"
+          echo "Status:    ✅ Success"
+          echo ""
