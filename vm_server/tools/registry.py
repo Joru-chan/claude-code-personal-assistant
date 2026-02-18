@@ -14,6 +14,7 @@ from tools import (
     serendipity,
     system_overview,
     tool_requests,
+    weather,
 )
 
 
@@ -31,5 +32,6 @@ def register_tools(mcp: FastMCP) -> None:
         health,
         photo_of_physical_items_like_kitchen_stuff,
         receipt_photo_pantry_inventory,
+        weather,
     ):
         module.register(mcp)
