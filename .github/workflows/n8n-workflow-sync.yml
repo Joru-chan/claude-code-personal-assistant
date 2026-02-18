@@ -1,0 +1,426 @@
+name: n8n Workflow Sync
+
+on:
+  workflow_dispatch:
+    inputs:
+      sync_direction:
+        description: 'Sync direction'
+        required: true
+        type: choice
+        options:
+          - 'push-to-n8n'
+          - 'pull-from-n8n'
+      workflow_name:
+        description: 'Name of workflow to sync'
+        required: true
+        type: string
+      workflow_id:
+        description: 'n8n workflow ID (optional, for pull-from-n8n)'
+        required: false
+        type: string
+      update_existing:
+        description: 'Update if workflow exists in n8n (for push-to-n8n)'
+        required: false
+        type: boolean
+        default: true
+      activate_workflow:
+        description: 'Activate workflow after syncing (for push-to-n8n)'
+        required: false
+        type: boolean
+        default: true
+
+# Environment variables for n8n API
+env:
+  N8N_API_URL: ${{ secrets.N8N_API_URL }}
+  N8N_API_KEY: ${{ secrets.N8N_API_KEY }}
+  WORKFLOW_DIR: workflows/n8n
+
+jobs:
+  # Job 1: Push workflow from GitHub to n8n
+  sync-to-n8n:
+    name: Push to n8n
+    runs-on: ubuntu-latest
+    if: github.event.inputs.sync_direction == 'push-to-n8n'
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      
+      - name: Debug - Display input parameters
+        run: |
+          echo "🔍 Debug: Input Parameters"
+          echo "Workflow Name: ${{ github.event.inputs.workflow_name }}"
+          echo "Update Existing: ${{ github.event.inputs.update_existing }}"
+          echo "Activate Workflow: ${{ github.event.inputs.activate_workflow }}"
+          echo "Sync Direction: ${{ github.event.inputs.sync_direction }}"
+          echo "---"
+      
+      - name: Validate n8n API credentials
+        run: |
+          echo "🔐 Validating n8n API credentials..."
+          if [ -z "$N8N_API_URL" ]; then
+            echo "❌ ERROR: N8N_API_URL secret is not set"
+            exit 1
+          fi
+          if [ -z "$N8N_API_KEY" ]; then
+            echo "❌ ERROR: N8N_API_KEY secret is not set"
+            exit 1
+          fi
+          echo "✅ API credentials validated"
+      
+      - name: Check if workflow file exists
+        id: check_file
+        run: |
+          WORKFLOW_FILE="${WORKFLOW_DIR}/${{ github.event.inputs.workflow_name }}.json"
+          echo "📁 Checking for workflow file: $WORKFLOW_FILE"
+          
+          if [ ! -f "$WORKFLOW_FILE" ]; then
+            echo "❌ ERROR: Workflow file not found at $WORKFLOW_FILE"
+            echo "Available files in $WORKFLOW_DIR:"
+            ls -la "$WORKFLOW_DIR" 2>/dev/null || echo "Directory does not exist"
+            exit 1
+          fi
+          
+          echo "✅ Workflow file found"
+          echo "workflow_file=$WORKFLOW_FILE" >> $GITHUB_OUTPUT
+          
+          # Validate JSON format
+          if ! jq empty "$WORKFLOW_FILE" 2>/dev/null; then
+            echo "❌ ERROR: Workflow file is not valid JSON"
+            exit 1
+          fi
+          echo "✅ JSON validation passed"
+      
+      - name: Display workflow content (debug)
+        run: |
+          echo "📄 Workflow content preview:"
+          cat "${{ steps.check_file.outputs.workflow_file }}" | jq -r '.name // "No name found"' || echo "Failed to parse workflow"
+          echo "---"
+      
+      - name: Check if workflow exists in n8n
+        id: check_n8n
+        continue-on-error: true
+        run: |
+          echo "🔍 Checking if workflow exists in n8n..."
+          
+          RESPONSE=$(curl -s -w "\n%{http_code}" \
+            -H "X-N8N-API-KEY: $N8N_API_KEY" \
+            -H "Content-Type: application/json" \
+            "$N8N_API_URL/workflows")
+          
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | sed '$d')
+          
+          echo "HTTP Status: $HTTP_CODE"
+          
+          if [ "$HTTP_CODE" -ne 200 ]; then
+            echo "⚠️ WARNING: Failed to retrieve workflows from n8n (HTTP $HTTP_CODE)"
+            echo "Response: $BODY"
+            echo "existing_workflow_id=" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # Search for workflow by name
+          WORKFLOW_NAME="${{ github.event.inputs.workflow_name }}"
+          EXISTING_ID=$(echo "$BODY" | jq -r --arg name "$WORKFLOW_NAME" '.data[]? | select(.name == $name) | .id // empty' | head -1)
+          
+          if [ -n "$EXISTING_ID" ]; then
+            echo "✅ Found existing workflow with ID: $EXISTING_ID"
+            echo "existing_workflow_id=$EXISTING_ID" >> $GITHUB_OUTPUT
+          else
+            echo "ℹ️ No existing workflow found with name '$WORKFLOW_NAME'"
+            echo "existing_workflow_id=" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Deploy workflow to n8n
+        id: deploy
+        run: |
+          echo "🚀 Deploying workflow to n8n..."
+          
+          WORKFLOW_FILE="${{ steps.check_file.outputs.workflow_file }}"
+          EXISTING_ID="${{ steps.check_n8n.outputs.existing_workflow_id }}"
+          UPDATE_EXISTING="${{ github.event.inputs.update_existing }}"
+          ACTIVATE="${{ github.event.inputs.activate_workflow }}"
+          
+          # Read and prepare workflow data
+          WORKFLOW_DATA=$(cat "$WORKFLOW_FILE")
+          
+          # Set activation status
+          WORKFLOW_DATA=$(echo "$WORKFLOW_DATA" | jq --argjson active "$ACTIVATE" '.active = $active')
+          
+          # Determine if we're creating or updating
+          if [ -n "$EXISTING_ID" ] && [ "$UPDATE_EXISTING" = "true" ]; then
+            echo "📝 Updating existing workflow (ID: $EXISTING_ID)..."
+            METHOD="PUT"
+            ENDPOINT="$N8N_API_URL/workflows/$EXISTING_ID"
+          elif [ -n "$EXISTING_ID" ] && [ "$UPDATE_EXISTING" = "false" ]; then
+            echo "❌ ERROR: Workflow exists and update_existing is false"
+            exit 1
+          else
+            echo "➕ Creating new workflow..."
+            METHOD="POST"
+            ENDPOINT="$N8N_API_URL/workflows"
+          fi
+          
+          # Make API request
+          RESPONSE=$(curl -s -w "\n%{http_code}" \
+            -X "$METHOD" \
+            -H "X-N8N-API-KEY: $N8N_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "$WORKFLOW_DATA" \
+            "$ENDPOINT")
+          
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | sed '$d')
+          
+          echo "HTTP Status: $HTTP_CODE"
+          
+          # Check for success
+          if [ "$HTTP_CODE" -eq 200 ] || [ "$HTTP_CODE" -eq 201 ]; then
+            WORKFLOW_ID=$(echo "$BODY" | jq -r '.id // .data.id // empty')
+            WORKFLOW_NAME=$(echo "$BODY" | jq -r '.name // .data.name // empty')
+            IS_ACTIVE=$(echo "$BODY" | jq -r '.active // .data.active // false')
+            
+            echo "✅ SUCCESS: Workflow deployed successfully!"
+            echo "Workflow ID: $WORKFLOW_ID"
+            echo "Workflow Name: $WORKFLOW_NAME"
+            echo "Active Status: $IS_ACTIVE"
+            
+            echo "workflow_id=$WORKFLOW_ID" >> $GITHUB_OUTPUT
+            echo "status=success" >> $GITHUB_OUTPUT
+          else
+            echo "❌ ERROR: Failed to deploy workflow (HTTP $HTTP_CODE)"
+            echo "Response: $BODY"
+            echo "status=failed" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+      
+      - name: Generate deployment summary
+        if: always()
+        run: |
+          echo "## 🚀 n8n Workflow Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Workflow Name:** ${{ github.event.inputs.workflow_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Status:** ${{ steps.deploy.outputs.status }}" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ steps.deploy.outputs.status }}" = "success" ]; then
+            echo "**Workflow ID:** ${{ steps.deploy.outputs.workflow_id }}" >> $GITHUB_STEP_SUMMARY
+            echo "**Activated:** ${{ github.event.inputs.activate_workflow }}" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "✅ Deployment completed successfully!" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "❌ Deployment failed. Check logs for details." >> $GITHUB_STEP_SUMMARY
+          fi
+
+  # Job 2: Pull workflow from n8n to GitHub
+  sync-from-n8n:
+    name: Pull from n8n
+    runs-on: ubuntu-latest
+    if: github.event.inputs.sync_direction == 'pull-from-n8n'
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Debug - Display input parameters
+        run: |
+          echo "🔍 Debug: Input Parameters"
+          echo "Workflow Name: ${{ github.event.inputs.workflow_name }}"
+          echo "Workflow ID: ${{ github.event.inputs.workflow_id }}"
+          echo "Sync Direction: ${{ github.event.inputs.sync_direction }}"
+          echo "---"
+      
+      - name: Validate n8n API credentials
+        run: |
+          echo "🔐 Validating n8n API credentials..."
+          if [ -z "$N8N_API_URL" ]; then
+            echo "❌ ERROR: N8N_API_URL secret is not set"
+            exit 1
+          fi
+          if [ -z "$N8N_API_KEY" ]; then
+            echo "❌ ERROR: N8N_API_KEY secret is not set"
+            exit 1
+          fi
+          echo "✅ API credentials validated"
+      
+      - name: Determine workflow ID
+        id: get_workflow_id
+        run: |
+          WORKFLOW_ID="${{ github.event.inputs.workflow_id }}"
+          WORKFLOW_NAME="${{ github.event.inputs.workflow_name }}"
+          
+          # If workflow ID is provided, use it directly
+          if [ -n "$WORKFLOW_ID" ]; then
+            echo "ℹ️ Using provided workflow ID: $WORKFLOW_ID"
+            echo "workflow_id=$WORKFLOW_ID" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # Otherwise, search for workflow by name
+          echo "🔍 Searching for workflow by name: $WORKFLOW_NAME"
+          
+          RESPONSE=$(curl -s -w "\n%{http_code}" \
+            -H "X-N8N-API-KEY: $N8N_API_KEY" \
+            -H "Content-Type: application/json" \
+            "$N8N_API_URL/workflows")
+          
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | sed '$d')
+          
+          echo "HTTP Status: $HTTP_CODE"
+          
+          if [ "$HTTP_CODE" -ne 200 ]; then
+            echo "❌ ERROR: Failed to retrieve workflows from n8n (HTTP $HTTP_CODE)"
+            echo "Response: $BODY"
+            exit 1
+          fi
+          
+          # Search for workflow by name
+          FOUND_ID=$(echo "$BODY" | jq -r --arg name "$WORKFLOW_NAME" '.data[]? | select(.name == $name) | .id // empty' | head -1)
+          
+          if [ -z "$FOUND_ID" ]; then
+            echo "❌ ERROR: Workflow '$WORKFLOW_NAME' not found in n8n"
+            echo "Available workflows:"
+            echo "$BODY" | jq -r '.data[]? | "  - \(.name) (ID: \(.id))"'
+            exit 1
+          fi
+          
+          echo "✅ Found workflow with ID: $FOUND_ID"
+          echo "workflow_id=$FOUND_ID" >> $GITHUB_OUTPUT
+      
+      - name: Export workflow from n8n
+        id: export
+        run: |
+          echo "📥 Exporting workflow from n8n..."
+          
+          WORKFLOW_ID="${{ steps.get_workflow_id.outputs.workflow_id }}"
+          
+          RESPONSE=$(curl -s -w "\n%{http_code}" \
+            -H "X-N8N-API-KEY: $N8N_API_KEY" \
+            -H "Content-Type: application/json" \
+            "$N8N_API_URL/workflows/$WORKFLOW_ID")
+          
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | sed '$d')
+          
+          echo "HTTP Status: $HTTP_CODE"
+          
+          if [ "$HTTP_CODE" -ne 200 ]; then
+            echo "❌ ERROR: Failed to export workflow (HTTP $HTTP_CODE)"
+            echo "Response: $BODY"
+            exit 1
+          fi
+          
+          # Extract workflow data
+          WORKFLOW_NAME=$(echo "$BODY" | jq -r '.name // .data.name // empty')
+          
+          if [ -z "$WORKFLOW_NAME" ]; then
+            echo "❌ ERROR: Could not extract workflow name from response"
+            exit 1
+          fi
+          
+          echo "✅ Successfully exported workflow: $WORKFLOW_NAME"
+          
+          # Save workflow data to temp file
+          echo "$BODY" > /tmp/workflow.json
+          echo "workflow_name=$WORKFLOW_NAME" >> $GITHUB_OUTPUT
+      
+      - name: Prepare workflow directory
+        run: |
+          echo "📁 Preparing workflow directory..."
+          mkdir -p "$WORKFLOW_DIR"
+          echo "✅ Directory ready: $WORKFLOW_DIR"
+      
+      - name: Save workflow to file
+        id: save
+        run: |
+          WORKFLOW_NAME="${{ github.event.inputs.workflow_name }}"
+          OUTPUT_FILE="${WORKFLOW_DIR}/${WORKFLOW_NAME}.json"
+          
+          echo "💾 Saving workflow to: $OUTPUT_FILE"
+          
+          # Format and save JSON with pretty printing
+          cat /tmp/workflow.json | jq '.' > "$OUTPUT_FILE"
+          
+          if [ ! -f "$OUTPUT_FILE" ]; then
+            echo "❌ ERROR: Failed to save workflow file"
+            exit 1
+          fi
+          
+          echo "✅ Workflow saved successfully"
+          echo "File size: $(du -h "$OUTPUT_FILE" | cut -f1)"
+          echo "output_file=$OUTPUT_FILE" >> $GITHUB_OUTPUT
+      
+      - name: Configure Git
+        run: |
+          echo "⚙️ Configuring Git..."
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+      
+      - name: Commit and push changes
+        id: commit
+        run: |
+          echo "📤 Committing and pushing changes..."
+          
+          OUTPUT_FILE="${{ steps.save.outputs.output_file }}"
+          WORKFLOW_NAME="${{ github.event.inputs.workflow_name }}"
+          WORKFLOW_ID="${{ steps.get_workflow_id.outputs.workflow_id }}"
+          
+          git add "$OUTPUT_FILE"
+          
+          # Check if there are changes to commit
+          if git diff --staged --quiet; then
+            echo "ℹ️ No changes detected - workflow is already up to date"
+            echo "status=no-changes" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # Create commit
+          COMMIT_MSG="Sync n8n workflow: $WORKFLOW_NAME (ID: $WORKFLOW_ID)
+
+Automatically synced from n8n instance
+Triggered by: ${{ github.actor }}
+Timestamp: $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
+          
+          git commit -m "$COMMIT_MSG"
+          
+          # Push changes
+          if git push origin main; then
+            echo "✅ Changes pushed successfully"
+            COMMIT_SHA=$(git rev-parse HEAD)
+            echo "Commit SHA: $COMMIT_SHA"
+            echo "status=success" >> $GITHUB_OUTPUT
+            echo "commit_sha=$COMMIT_SHA" >> $GITHUB_OUTPUT
+          else
+            echo "❌ ERROR: Failed to push changes"
+            echo "status=failed" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+      
+      - name: Generate sync summary
+        if: always()
+        run: |
+          echo "## 📥 n8n Workflow Sync Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Workflow Name:** ${{ github.event.inputs.workflow_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Workflow ID:** ${{ steps.get_workflow_id.outputs.workflow_id }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Status:** ${{ steps.commit.outputs.status }}" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ steps.commit.outputs.status }}" = "success" ]; then
+            echo "**Commit SHA:** ${{ steps.commit.outputs.commit_sha }}" >> $GITHUB_STEP_SUMMARY
+            echo "**File Location:** ${{ steps.save.outputs.output_file }}" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "✅ Sync completed successfully!" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ steps.commit.outputs.status }}" = "no-changes" ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "ℹ️ No changes detected - workflow is already up to date." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "❌ Sync failed. Check logs for details." >> $GITHUB_STEP_SUMMARY
+          fi
