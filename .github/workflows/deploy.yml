@@ -45,12 +45,62 @@ jobs:
             ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }} \
             "echo '✅ SSH connection successful'"
 
+      - name: Debug Rsync Variables
+        if: ${{ !inputs.restart_only }}
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "🔍 DEBUGGING RSYNC CONFIGURATION"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "VM_USER is set: ${{ secrets.VM_USER != '' }}"
+          echo "VM_HOST is set: ${{ secrets.VM_HOST != '' }}"
+          echo "VM_DEST_DIR is set: ${{ secrets.VM_DEST_DIR != '' }}"
+          echo ""
+          echo "VM_USER length: $(echo -n '${{ secrets.VM_USER }}' | wc -c) characters"
+          echo "VM_HOST length: $(echo -n '${{ secrets.VM_HOST }}' | wc -c) characters"
+          echo "VM_DEST_DIR length: $(echo -n '${{ secrets.VM_DEST_DIR }}' | wc -c) characters"
+          echo ""
+          echo "Full rsync target path will be:"
+          echo "${{ secrets.VM_USER }}@${{ secrets.VM_HOST }}:${{ secrets.VM_DEST_DIR }}/"
+          echo ""
+          echo "VM_DEST_DIR starts with: $(echo '${{ secrets.VM_DEST_DIR }}' | cut -c1-10)..."
+          echo "VM_DEST_DIR ends with: ...$(echo '${{ secrets.VM_DEST_DIR }}' | tail -c 10)"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+      - name: Verify remote directory
+        if: ${{ !inputs.restart_only }}
+        run: |
+          echo "🔍 Verifying remote directory structure..."
+          
+          ssh -i ~/.ssh/deploy_key \
+            ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }} \
+            "echo 'Current user: \$(whoami)'; \
+             echo 'Home directory: \$HOME'; \
+             echo 'Target directory: ${{ secrets.VM_DEST_DIR }}'; \
+             echo ''; \
+             echo 'Checking if directory exists:'; \
+             if [ -d '${{ secrets.VM_DEST_DIR }}' ]; then \
+               echo '✅ Directory exists'; \
+               ls -la '${{ secrets.VM_DEST_DIR }}' | head -n 10; \
+               echo ''; \
+               echo 'Directory permissions:'; \
+               stat -c '%A %U:%G' '${{ secrets.VM_DEST_DIR }}'; \
+             else \
+               echo '❌ Directory does NOT exist'; \
+               echo 'Attempting to create it...'; \
+               mkdir -p '${{ secrets.VM_DEST_DIR }}' && echo '✅ Directory created' || echo '❌ Failed to create directory'; \
+             fi"
+
       - name: Sync code to VM
         if: ${{ !inputs.restart_only }}
         run: |
-          echo "📦 Syncing code from vm_server/ to VM..."
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "📦 Starting rsync deployment..."
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "Source: vm_server/"
+          echo "Target: ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }}:${{ secrets.VM_DEST_DIR }}/"
+          echo ""
           
-          rsync -avz --progress \
+          rsync -avvz --progress \
             --exclude='venv/' \
             --exclude='__pycache__/' \
             --exclude='*.pyc' \
@@ -62,7 +112,16 @@ jobs:
             -e "ssh -i ~/.ssh/deploy_key" \
             vm_server/ ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }}:${{ secrets.VM_DEST_DIR }}/
           
-          echo "✅ Code sync complete"
+          rsync_exit_code=$?
+          echo ""
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          if [ $rsync_exit_code -eq 0 ]; then
+            echo "✅ Rsync completed successfully (exit code: $rsync_exit_code)"
+          else
+            echo "❌ Rsync failed with exit code: $rsync_exit_code"
+            exit $rsync_exit_code
+          fi
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
       - name: Install dependencies
         if: ${{ !inputs.restart_only }}
