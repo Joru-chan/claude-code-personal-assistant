@@ -34,41 +34,132 @@ jobs:
       
       - name: Install dependencies
         run: |
-          npm install -g n8n
+          npm install axios
+      
+      - name: Verify workflows directory
+        run: |
+          echo "Checking for workflows directory..."
+          if [ -d "workflows" ]; then
+            echo "✅ Workflows directory exists"
+            echo "Contents:"
+            ls -la workflows/
+          else
+            echo "❌ Workflows directory not found!"
+            exit 1
+          fi
       
       - name: Push workflows to N8N
         env:
           N8N_API_KEY: ${{ secrets.N8NAPIKEY }}
+          N8N_BASE_URL: ${{ secrets.N8N_BASE_URL }}
           WORKFLOW_NAME: ${{ github.event.inputs.workflow_name }}
         run: |
-          echo "Pushing workflows to N8N..."
+          cat > push_workflows.js << 'EOF'
+          const fs = require('fs');
+          const path = require('path');
+          const axios = require('axios');
+
+          const N8N_API_KEY = process.env.N8N_API_KEY;
+          const N8N_BASE_URL = process.env.N8N_BASE_URL || 'http://localhost:5678';
+          const WORKFLOW_NAME = process.env.WORKFLOW_NAME;
+
+          if (!N8N_API_KEY) {
+            console.error('❌ N8N_API_KEY is not set');
+            process.exit(1);
+          }
+
+          const axiosConfig = {
+            headers: {
+              'X-N8N-API-KEY': N8N_API_KEY,
+              'Content-Type': 'application/json'
+            }
+          };
+
+          console.log('🚀 Pushing workflows to N8N...');
+          console.log(`📍 N8N URL: ${N8N_BASE_URL}`);
+
+          async function pushWorkflow(filePath) {
+            try {
+              const workflowData = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+              const workflowName = path.basename(filePath, '.json');
+              
+              console.log(`\n📦 Processing: ${workflowName}`);
+              
+              // First, try to find existing workflow by name
+              const response = await axios.get(
+                `${N8N_BASE_URL}/api/v1/workflows`,
+                axiosConfig
+              );
+              
+              const existingWorkflow = response.data.data.find(w => w.name === workflowData.name);
+              
+              if (existingWorkflow) {
+                console.log(`   ↪️  Updating existing workflow (ID: ${existingWorkflow.id})`);
+                await axios.patch(
+                  `${N8N_BASE_URL}/api/v1/workflows/${existingWorkflow.id}`,
+                  workflowData,
+                  axiosConfig
+                );
+                console.log(`   ✅ Successfully updated`);
+              } else {
+                console.log(`   ↪️  Creating new workflow`);
+                await axios.post(
+                  `${N8N_BASE_URL}/api/v1/workflows`,
+                  workflowData,
+                  axiosConfig
+                );
+                console.log(`   ✅ Successfully created`);
+              }
+              
+              return { success: true, name: workflowName };
+            } catch (error) {
+              console.error(`   ❌ Error: ${error.message}`);
+              if (error.response) {
+                console.error(`   Response: ${JSON.stringify(error.response.data)}`);
+              }
+              return { success: false, name: path.basename(filePath, '.json'), error: error.message };
+            }
+          }
+
+          async function main() {
+            const workflowsDir = 'workflows';
+            let results = [];
+            
+            if (WORKFLOW_NAME) {
+              const filePath = path.join(workflowsDir, `${WORKFLOW_NAME}.json`);
+              if (fs.existsSync(filePath)) {
+                results.push(await pushWorkflow(filePath));
+              } else {
+                console.error(`❌ Workflow file not found: ${filePath}`);
+                process.exit(1);
+              }
+            } else {
+              const files = fs.readdirSync(workflowsDir).filter(f => f.endsWith('.json'));
+              console.log(`Found ${files.length} workflow file(s)`);
+              
+              for (const file of files) {
+                const filePath = path.join(workflowsDir, file);
+                results.push(await pushWorkflow(filePath));
+              }
+            }
+            
+            // Summary
+            const successful = results.filter(r => r.success).length;
+            const failed = results.filter(r => !r.success).length;
+            
+            console.log('\n' + '═'.repeat(60));
+            console.log(`📊 Summary: ${successful} successful, ${failed} failed`);
+            console.log('═'.repeat(60));
+            
+            if (failed > 0) {
+              process.exit(1);
+            }
+          }
+
+          main();
+          EOF
           
-          if [ -n "$WORKFLOW_NAME" ]; then
-            # Push specific workflow
-            workflow_file="workflows/${WORKFLOW_NAME}.json"
-            if [ -f "$workflow_file" ]; then
-              echo "Processing specific workflow: $workflow_file"
-              workflow_name=$(basename "$workflow_file" .json)
-              echo "Workflow name: $workflow_name"
-            else
-              echo "Error: Workflow file not found: $workflow_file"
-              exit 1
-            fi
-          else
-            # Push all workflows
-            echo "Processing all workflows..."
-            for workflow_file in workflows/*.json; do
-              if [ -f "$workflow_file" ]; then
-                echo "Processing: $workflow_file"
-                workflow_name=$(basename "$workflow_file" .json)
-                echo "Workflow name: $workflow_name"
-              fi
-            done
-          fi
-      
-      - name: Report push status
-        run: |
-          echo "Push to N8N completed"
+          node push_workflows.js
       
       - name: 📊 Push Summary
         if: always()
@@ -118,41 +209,233 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
       
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
       
+      - name: Install dependencies
+        run: |
+          npm install axios
+      
       - name: Create workflows directory
         run: |
+          echo "📁 Ensuring workflows directory exists..."
           mkdir -p workflows
+          echo "✅ Directory ready: $(pwd)/workflows"
+      
+      - name: Debug - Show current state
+        run: |
+          echo "🔍 Current repository state:"
+          echo "Working directory: $(pwd)"
+          echo ""
+          echo "Directory structure:"
+          ls -la
+          echo ""
+          if [ -d "workflows" ]; then
+            echo "Existing workflows directory contents:"
+            ls -la workflows/ || echo "Directory is empty"
+            echo ""
+            echo "Current workflow files:"
+            find workflows -name "*.json" -type f || echo "No JSON files found"
+          fi
       
       - name: Pull workflows from N8N
         env:
           N8N_API_KEY: ${{ secrets.N8NAPIKEY }}
+          N8N_BASE_URL: ${{ secrets.N8N_BASE_URL }}
           WORKFLOW_NAME: ${{ github.event.inputs.workflow_name }}
         run: |
-          echo "Pulling workflows from N8N..."
-          echo "N8N API configured"
+          cat > pull_workflows.js << 'EOF'
+          const fs = require('fs');
+          const path = require('path');
+          const axios = require('axios');
+
+          const N8N_API_KEY = process.env.N8N_API_KEY;
+          const N8N_BASE_URL = process.env.N8N_BASE_URL || 'http://localhost:5678';
+          const WORKFLOW_NAME = process.env.WORKFLOW_NAME;
+
+          if (!N8N_API_KEY) {
+            console.error('❌ N8N_API_KEY is not set');
+            process.exit(1);
+          }
+
+          const axiosConfig = {
+            headers: {
+              'X-N8N-API-KEY': N8N_API_KEY,
+              'Content-Type': 'application/json'
+            }
+          };
+
+          console.log('⬇️  Pulling workflows from N8N...');
+          console.log(`📍 N8N URL: ${N8N_BASE_URL}`);
+          console.log(`🔑 API Key configured: ${N8N_API_KEY.substring(0, 8)}...`);
+
+          async function pullWorkflows() {
+            try {
+              console.log('\n📡 Fetching workflows from N8N API...');
+              
+              const response = await axios.get(
+                `${N8N_BASE_URL}/api/v1/workflows`,
+                axiosConfig
+              );
+              
+              const workflows = response.data.data;
+              console.log(`✅ Retrieved ${workflows.length} workflow(s) from N8N`);
+              
+              if (workflows.length === 0) {
+                console.log('⚠️  No workflows found in N8N instance');
+                return [];
+              }
+              
+              const workflowsDir = 'workflows';
+              if (!fs.existsSync(workflowsDir)) {
+                fs.mkdirSync(workflowsDir, { recursive: true });
+              }
+              
+              let savedWorkflows = [];
+              
+              for (const workflow of workflows) {
+                // If specific workflow requested, filter by name
+                if (WORKFLOW_NAME && workflow.name !== WORKFLOW_NAME) {
+                  continue;
+                }
+                
+                console.log(`\n📦 Processing: ${workflow.name} (ID: ${workflow.id})`);
+                
+                // Fetch full workflow details
+                const detailResponse = await axios.get(
+                  `${N8N_BASE_URL}/api/v1/workflows/${workflow.id}`,
+                  axiosConfig
+                );
+                
+                const workflowData = detailResponse.data.data;
+                
+                // Clean filename
+                const fileName = workflow.name.replace(/[^a-z0-9_-]/gi, '_').toLowerCase();
+                const filePath = path.join(workflowsDir, `${fileName}.json`);
+                
+                // Read existing file if it exists
+                let hasChanges = true;
+                if (fs.existsSync(filePath)) {
+                  const existingContent = fs.readFileSync(filePath, 'utf8');
+                  const newContent = JSON.stringify(workflowData, null, 2);
+                  
+                  hasChanges = existingContent !== newContent;
+                  
+                  if (hasChanges) {
+                    console.log(`   ↪️  Changes detected - updating file`);
+                  } else {
+                    console.log(`   ↪️  No changes - file is up to date`);
+                  }
+                } else {
+                  console.log(`   ↪️  New workflow - creating file`);
+                }
+                
+                // Write workflow to file
+                fs.writeFileSync(filePath, JSON.stringify(workflowData, null, 2) + '\n');
+                console.log(`   ✅ Saved to: ${filePath}`);
+                
+                savedWorkflows.push({
+                  name: workflow.name,
+                  file: filePath,
+                  hasChanges: hasChanges,
+                  isNew: !fs.existsSync(filePath)
+                });
+              }
+              
+              return savedWorkflows;
+              
+            } catch (error) {
+              console.error(`❌ Error fetching workflows: ${error.message}`);
+              if (error.response) {
+                console.error(`   Status: ${error.response.status}`);
+                console.error(`   Response: ${JSON.stringify(error.response.data)}`);
+              }
+              if (error.code === 'ECONNREFUSED') {
+                console.error('   ⚠️  Cannot connect to N8N. Check N8N_BASE_URL.');
+              }
+              throw error;
+            }
+          }
+
+          async function main() {
+            try {
+              const results = await pullWorkflows();
+              
+              console.log('\n' + '═'.repeat(60));
+              console.log(`📊 Successfully pulled ${results.length} workflow(s)`);
+              
+              if (results.length > 0) {
+                console.log('\n📄 Workflow Details:');
+                results.forEach(r => {
+                  const status = r.isNew ? '🆕 NEW' : (r.hasChanges ? '📝 UPDATED' : '✓ UNCHANGED');
+                  console.log(`   ${status} - ${r.name}`);
+                  console.log(`      └─ ${r.file}`);
+                });
+              }
+              
+              console.log('═'.repeat(60));
+              
+            } catch (error) {
+              console.error('\n❌ Failed to pull workflows');
+              process.exit(1);
+            }
+          }
+
+          main();
+          EOF
           
-          if [ -n "$WORKFLOW_NAME" ]; then
-            echo "Pulling specific workflow: $WORKFLOW_NAME"
+          node pull_workflows.js
+      
+      - name: Show changes
+        run: |
+          echo "🔍 Checking for changes in workflows directory..."
+          echo ""
+          echo "Git status:"
+          git status workflows/
+          echo ""
+          
+          if [ -d "workflows" ] && [ "$(ls -A workflows/*.json 2>/dev/null)" ]; then
+            echo "📊 Workflow files:"
+            for file in workflows/*.json; do
+              if [ -f "$file" ]; then
+                echo "  • $(basename "$file")"
+                echo "    Size: $(wc -c < "$file") bytes"
+                echo "    Modified: $(stat -c %y "$file" 2>/dev/null || stat -f %Sm "$file")"
+              fi
+            done
+            echo ""
+          fi
+          
+          if git diff --quiet workflows/; then
+            echo "✅ No changes detected - all workflows are up to date"
           else
-            echo "Pulling all workflows"
+            echo "📝 Changes detected:"
+            git diff --stat workflows/
+            echo ""
+            echo "Detailed changes:"
+            git diff workflows/
           fi
       
       - name: Check for changes
         id: check_changes
         run: |
-          git diff --quiet workflows/ || echo "has_changes=true" >> $GITHUB_OUTPUT
-          
-          # Store change details for summary
-          if ! git diff --quiet workflows/; then
+          # Check if there are any changes
+          if git diff --quiet workflows/ && git diff --cached --quiet workflows/; then
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+            echo "CHANGES_DETECTED=false" >> $GITHUB_ENV
+            echo "⚠️  No changes to commit"
+          else
+            echo "has_changes=true" >> $GITHUB_OUTPUT
             echo "CHANGES_DETECTED=true" >> $GITHUB_ENV
+            echo "✅ Changes detected and ready to commit"
             
             # Get list of changed files
-            changed_files=$(git diff --name-only workflows/ | sed 's/^/   • /')
+            changed_files=$(git diff --name-only workflows/ && git diff --cached --name-only workflows/ | sort -u | sed 's/^/   • /')
             echo "CHANGED_FILES<<EOF" >> $GITHUB_ENV
             echo "$changed_files" >> $GITHUB_ENV
             echo "EOF" >> $GITHUB_ENV
@@ -162,18 +445,30 @@ jobs:
             deleted=$(git diff --numstat workflows/ | awk '{sum+=$2} END {print sum+0}')
             echo "LINES_ADDED=$added" >> $GITHUB_ENV
             echo "LINES_DELETED=$deleted" >> $GITHUB_ENV
-          else
-            echo "CHANGES_DETECTED=false" >> $GITHUB_ENV
           fi
       
       - name: Commit and push changes
         if: steps.check_changes.outputs.has_changes == 'true'
         run: |
+          echo "💾 Committing changes..."
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          
           git add workflows/
-          git diff --staged --quiet || git commit -m "Update workflows from N8N"
-          git push
+          
+          # Double check there are staged changes
+          if git diff --staged --quiet; then
+            echo "⚠️  No staged changes to commit"
+          else
+            git commit -m "🔄 Update workflows from N8N
+
+Automatically synced workflows from N8N instance.
+
+$(git diff --staged --stat workflows/)
+"
+            git push
+            echo "✅ Changes committed and pushed successfully"
+          fi
       
       - name: 📊 Pull Summary
         if: always()
@@ -190,13 +485,13 @@ jobs:
           echo ""
           
           if [ -n "$WORKFLOW_NAME" ]; then
-            echo "✅ Pulled updates from workflow: 【 $WORKFLOW_NAME 】"
+            echo "🎯 Target: Specific workflow - 【 $WORKFLOW_NAME 】"
             echo ""
             echo "📦 Workflow Details:"
             echo "   • Name: $WORKFLOW_NAME"
-            echo "   • Target: workflows/${WORKFLOW_NAME}.json"
+            echo "   • Target: workflows/\${WORKFLOW_NAME}.json"
           else
-            echo "✅ Pulled updates from ALL workflows"
+            echo "🎯 Target: ALL workflows from N8N"
             echo ""
             echo "📦 Target Directory: workflows/"
           fi
@@ -205,7 +500,7 @@ jobs:
           echo "📝 Changes Summary:"
           
           if [ "${CHANGES_DETECTED:-false}" = "true" ]; then
-            echo "   • Status: Changes detected and committed"
+            echo "   • Status: ✅ Changes detected and committed"
             echo "   • Lines added: ${LINES_ADDED:-0}"
             echo "   • Lines deleted: ${LINES_DELETED:-0}"
             echo ""
@@ -214,8 +509,17 @@ jobs:
             echo ""
             echo "💾 Changes have been committed and pushed to repository"
           else
-            echo "   • Status: No changes detected"
+            echo "   • Status: ✅ No changes detected"
             echo "   • All workflows are up to date"
+            echo ""
+            if [ -d "workflows" ]; then
+              echo "📂 Current workflows in repository:"
+              for file in workflows/*.json; do
+                if [ -f "$file" ]; then
+                  echo "   • $(basename "$file")"
+                fi
+              done
+            fi
           fi
           
           echo ""
