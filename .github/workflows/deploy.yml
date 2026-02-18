@@ -166,6 +166,8 @@ jobs:
       - name: MCP health check
         run: |
           echo "🏥 Running MCP health check..."
+          echo "🔍 Debug: MCP URL being used: ${{ secrets.VMMCPURL }}"
+          echo ""
           
           max_attempts=10
           attempt=0
@@ -179,7 +181,7 @@ jobs:
               -H "Content-Type: application/json" \
               -H "Accept: application/json, text/event-stream" \
               -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"health_check","arguments":{}}}' \
-              "${{ secrets.VM_MCP_URL }}" || echo "HTTP_STATUS:000")
+              "${{ secrets.VMMCPURL }}" || echo "HTTP_STATUS:000")
             
             status=$(echo "$response" | tail -n1 | sed 's/HTTP_STATUS://')
             body=$(echo "$response" | sed '$d')
@@ -239,7 +241,7 @@ jobs:
           echo "📍 Target: ${{ secrets.VM_HOST }}"
           echo "📂 Directory: ${{ secrets.VMDEST_DIR }}"
           echo "🔧 Service: ${{ secrets.VM_SERVICE }}"
-          echo "🌐 MCP URL: ${{ secrets.VM_MCP_URL }}"
+          echo "🌐 MCP URL: ${{ secrets.VMMCPURL }}"
           echo "💚 Health URL: ${{ secrets.VM_HEALTH_URL }}"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
