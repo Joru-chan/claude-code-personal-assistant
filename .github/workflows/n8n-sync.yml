@@ -36,42 +36,42 @@ jobs:
           else
             echo "Workflow Name: ${{ inputs.workflow_name }}"
           fi
-          echo "N8N Base URL: ${{ secrets.N8N.BASE.URL }}"
+          echo "N8N Base URL: ${{ secrets.N8N_BASE_URL }}"
           echo "========================="
 
       - name: Validate secrets
         env:
-          N8N_API_KEY: ${{ secrets.N8NAPIKEY }}
-          N8N.BASE.URL: ${{ secrets.N8N.BASE.URL }}
+          N8N_API_KEY: ${{ secrets.N8N_API_KEY }}
+          N8N_BASE_URL: ${{ secrets.N8N_BASE_URL }}
         run: |
           echo "🔐 Validating secrets..."
           
-          if [ -z "$N8N.BASE.URL" ]; then
-            echo "❌ ERROR: N8N.BASE.URL secret is not set"
+          if [ -z "$N8N_BASE_URL" ]; then
+            echo "❌ ERROR: N8N_BASE_URL secret is not set"
             exit 1
           fi
           
           if [ -z "$N8N_API_KEY" ]; then
-            echo "❌ ERROR: N8NAPIKEY secret is not set"
+            echo "❌ ERROR: N8N_API_KEY secret is not set"
             exit 1
           fi
           
           # Remove trailing slash from base URL if present
-          N8N.BASE.URL="${N8N.BASE.URL%/}"
-          echo "N8N.BASE.URL=$N8N.BASE.URL" >> $GITHUB_ENV
+          N8N_BASE_URL="${N8N_BASE_URL%/}"
+          echo "N8N_BASE_URL=$N8N_BASE_URL" >> $GITHUB_ENV
           
           echo "✅ Secrets validated"
 
       - name: Test n8n API connection
         env:
-          N8N_API_KEY: ${{ secrets.N8NAPIKEY }}
+          N8N_API_KEY: ${{ secrets.N8N_API_KEY }}
         run: |
           echo "🔌 Testing n8n API connection..."
           
           HTTP_STATUS=$(curl -s -o /tmp/api_test.json -w "%{http_code}" \
             -H "X-N8N-API-KEY: $N8N_API_KEY" \
             -H "Accept: application/json" \
-            "$N8N.BASE.URL/rest/workflows")
+            "$N8N_BASE_URL/rest/workflows")
           
           if [ "$HTTP_STATUS" -eq 200 ]; then
             echo "✅ Successfully connected to n8n API"
@@ -79,11 +79,11 @@ jobs:
             echo "📊 Found $WORKFLOW_COUNT workflows in n8n"
           elif [ "$HTTP_STATUS" -eq 401 ]; then
             echo "❌ ERROR: Authentication failed (401)"
-            echo "Please check that N8NAPIKEY is correct"
+            echo "Please check that N8N_API_KEY is correct"
             exit 1
           elif [ "$HTTP_STATUS" -eq 404 ]; then
             echo "❌ ERROR: API endpoint not found (404)"
-            echo "Please check that N8N.BASE.URL is correct"
+            echo "Please check that N8N_BASE_URL is correct"
             exit 1
           else
             echo "❌ ERROR: API request failed with status $HTTP_STATUS"
@@ -99,7 +99,7 @@ jobs:
       - name: Pull workflow(s) from N8N
         if: inputs.sync_direction == 'pull'
         env:
-          N8N_API_KEY: ${{ secrets.N8NAPIKEY }}
+          N8N_API_KEY: ${{ secrets.N8N_API_KEY }}
           WORKFLOW_NAME: ${{ inputs.workflow_name }}
         run: |
           echo "📥 Starting pull operation..."
@@ -111,7 +111,7 @@ jobs:
             HTTP_STATUS=$(curl -s -o /tmp/workflows_list.json -w "%{http_code}" \
               -H "X-N8N-API-KEY: $N8N_API_KEY" \
               -H "Accept: application/json" \
-              "$N8N.BASE.URL/rest/workflows")
+              "$N8N_BASE_URL/rest/workflows")
             
             if [ "$HTTP_STATUS" -ne 200 ]; then
               echo "❌ ERROR: Failed to fetch workflow list (HTTP $HTTP_STATUS)"
@@ -143,7 +143,7 @@ jobs:
               HTTP_STATUS=$(curl -s -o "/tmp/workflow_${WORKFLOW_ID}.json" -w "%{http_code}" \
                 -H "X-N8N-API-KEY: $N8N_API_KEY" \
                 -H "Accept: application/json" \
-                "$N8N.BASE.URL/rest/workflows/$WORKFLOW_ID")
+                "$N8N_BASE_URL/rest/workflows/$WORKFLOW_ID")
               
               if [ "$HTTP_STATUS" -eq 200 ]; then
                 # Create safe filename from workflow name (replace spaces and special chars)
@@ -178,7 +178,7 @@ jobs:
             HTTP_STATUS=$(curl -s -o /tmp/workflows_list.json -w "%{http_code}" \
               -H "X-N8N-API-KEY: $N8N_API_KEY" \
               -H "Accept: application/json" \
-              "$N8N.BASE.URL/rest/workflows")
+              "$N8N_BASE_URL/rest/workflows")
             
             if [ "$HTTP_STATUS" -ne 200 ]; then
               echo "❌ ERROR: Failed to fetch workflow list (HTTP $HTTP_STATUS)"
@@ -204,7 +204,7 @@ jobs:
             HTTP_STATUS=$(curl -s -o /tmp/workflow_single.json -w "%{http_code}" \
               -H "X-N8N-API-KEY: $N8N_API_KEY" \
               -H "Accept: application/json" \
-              "$N8N.BASE.URL/rest/workflows/$WORKFLOW_ID")
+              "$N8N_BASE_URL/rest/workflows/$WORKFLOW_ID")
             
             if [ "$HTTP_STATUS" -eq 200 ]; then
               # Create safe filename
@@ -225,7 +225,7 @@ jobs:
       - name: Push workflow(s) to N8N
         if: inputs.sync_direction == 'push'
         env:
-          N8N_API_KEY: ${{ secrets.N8NAPIKEY }}
+          N8N_API_KEY: ${{ secrets.N8N_API_KEY }}
           WORKFLOW_NAME: ${{ inputs.workflow_name }}
         run: |
           echo "📤 Starting push operation..."
@@ -255,7 +255,7 @@ jobs:
                 HTTP_STATUS=$(curl -s -o /tmp/check_response.json -w "%{http_code}" \
                   -H "X-N8N-API-KEY: $N8N_API_KEY" \
                   -H "Accept: application/json" \
-                  "$N8N.BASE.URL/rest/workflows/$WORKFLOW_ID")
+                  "$N8N_BASE_URL/rest/workflows/$WORKFLOW_ID")
                 
                 if [ "$HTTP_STATUS" -eq 200 ]; then
                   # Workflow exists, update it
@@ -264,7 +264,7 @@ jobs:
                     -H "X-N8N-API-KEY: $N8N_API_KEY" \
                     -H "Content-Type: application/json" \
                     -d @"$workflow_file" \
-                    "$N8N.BASE.URL/rest/workflows/$WORKFLOW_ID")
+                    "$N8N_BASE_URL/rest/workflows/$WORKFLOW_ID")
                   
                   if [ "$HTTP_STATUS" -eq 200 ]; then
                     echo "  ✅ Updated: $workflow_basename"
@@ -281,7 +281,7 @@ jobs:
                     -H "X-N8N-API-KEY: $N8N_API_KEY" \
                     -H "Content-Type: application/json" \
                     -d @"$workflow_file" \
-                    "$N8N.BASE.URL/rest/workflows")
+                    "$N8N_BASE_URL/rest/workflows")
                   
                   if [ "$HTTP_STATUS" -eq 200 ] || [ "$HTTP_STATUS" -eq 201 ]; then
                     echo "  ✅ Created: $workflow_basename"
@@ -335,7 +335,7 @@ jobs:
             HTTP_STATUS=$(curl -s -o /tmp/check_response.json -w "%{http_code}" \
               -H "X-N8N-API-KEY: $N8N_API_KEY" \
               -H "Accept: application/json" \
-              "$N8N.BASE.URL/rest/workflows/$WORKFLOW_ID")
+              "$N8N_BASE_URL/rest/workflows/$WORKFLOW_ID")
             
             if [ "$HTTP_STATUS" -eq 200 ]; then
               # Update existing workflow
@@ -344,7 +344,7 @@ jobs:
                 -H "X-N8N-API-KEY: $N8N_API_KEY" \
                 -H "Content-Type: application/json" \
                 -d @"$WORKFLOW_FILE" \
-                "$N8N.BASE.URL/rest/workflows/$WORKFLOW_ID")
+                "$N8N_BASE_URL/rest/workflows/$WORKFLOW_ID")
               
               if [ "$HTTP_STATUS" -eq 200 ]; then
                 echo "✅ Successfully updated workflow in n8n"
@@ -360,7 +360,7 @@ jobs:
                 -H "X-N8N-API-KEY: $N8N_API_KEY" \
                 -H "Content-Type: application/json" \
                 -d @"$WORKFLOW_FILE" \
-                "$N8N.BASE.URL/rest/workflows")
+                "$N8N_BASE_URL/rest/workflows")
               
               if [ "$HTTP_STATUS" -eq 200 ] || [ "$HTTP_STATUS" -eq 201 ]; then
                 echo "✅ Successfully created workflow in n8n"
