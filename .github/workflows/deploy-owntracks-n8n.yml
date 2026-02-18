@@ -1,0 +1,710 @@
+name: Deploy Owntracks n8n Workflow
+
+# This workflow creates and deploys an n8n workflow that:
+# 1. Receives Owntracks location updates via webhook
+# 2. Filters location data based on configurable criteria
+# 3. Sends filtered data to Poke for processing
+# 4. Returns the webhook URL for configuration in Owntracks app
+
+on:
+  workflow_dispatch:
+    inputs:
+      update_existing:
+        description: 'Update existing workflow if found (by name)'
+        required: false
+        type: boolean
+        default: true
+      activate_workflow:
+        description: 'Activate the workflow after deployment'
+        required: false
+        type: boolean
+        default: true
+      min_accuracy:
+        description: 'Minimum GPS accuracy in meters (filter out less accurate)'
+        required: false
+        type: number
+        default: 100
+      min_distance:
+        description: 'Minimum distance change in meters to send update'
+        required: false
+        type: number
+        default: 50
+
+jobs:
+  deploy-owntracks-workflow:
+    runs-on: ubuntu-latest
+    environment: production
+    
+    steps:
+      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      # SETUP
+      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Debug Configuration
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "🔍 DEPLOYMENT CONFIGURATION"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "VM_HOST: ${{ secrets.VM_HOST }}"
+          echo "VM_USER: ${{ secrets.VM_USER }}"
+          echo "Update existing: ${{ inputs.update_existing }}"
+          echo "Activate workflow: ${{ inputs.activate_workflow }}"
+          echo "Min GPS accuracy: ${{ inputs.min_accuracy }}m"
+          echo "Min distance change: ${{ inputs.min_distance }}m"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      # SSH SETUP (Same pattern as existing workflows)
+      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+      - name: Setup SSH
+        run: |
+          echo "🔐 Setting up SSH connection..."
+          
+          # Create SSH directory
+          mkdir -p ~/.ssh
+          
+          # Decode and save the base64-encoded SSH private key
+          echo "${{ secrets.VMSSHPRIVATE_KEY_B64 }}" | base64 -d > ~/.ssh/deploy_key
+          
+          # Set restrictive permissions on the key (required by SSH)
+          chmod 600 ~/.ssh/deploy_key
+          
+          # Add VM host to known_hosts to avoid host verification prompt
+          echo "📝 Adding VM host to known_hosts..."
+          ssh-keyscan -H ${{ secrets.VM_HOST }} >> ~/.ssh/known_hosts
+          
+          # Test SSH connection
+          echo "🔌 Testing SSH connection..."
+          ssh -i ~/.ssh/deploy_key -o ConnectTimeout=10 \
+            ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }} \
+            "echo '✅ SSH connection successful'"
+          
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      # DETECT N8N INSTALLATION
+      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+      - name: Detect n8n API endpoint
+        id: detect_n8n
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "🔍 Detecting n8n installation and API endpoint..."
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          
+          # Common n8n ports and paths
+          N8N_PORTS=(5678 5679 443 80)
+          N8N_API_ENDPOINT=""
+          
+          for PORT in "${N8N_PORTS[@]}"; do
+            echo "🔍 Trying port $PORT..."
+            
+            # Try to access n8n API
+            response=$(curl -s -w "\nHTTP_STATUS:%{http_code}\n" \
+              -H "Accept: application/json" \
+              "http://${{ secrets.VM_HOST }}:$PORT/api/v1/workflows" 2>/dev/null || echo "HTTP_STATUS:000")
+            
+            status=$(echo "$response" | tail -n1 | sed 's/HTTP_STATUS://')
+            
+            # n8n API returns 401 if not authenticated, which means it's there
+            if [[ "$status" == "401" ]] || [[ "$status" == "200" ]]; then
+              N8N_API_ENDPOINT="http://${{ secrets.VM_HOST }}:$PORT"
+              echo "✅ Found n8n API at: $N8N_API_ENDPOINT"
+              echo "   HTTP Status: $status"
+              break
+            else
+              echo "⚠️  Port $PORT returned status $status"
+            fi
+          done
+          
+          if [ -z "$N8N_API_ENDPOINT" ]; then
+            echo "❌ Could not detect n8n API endpoint"
+            echo "   Tried ports: ${N8N_PORTS[@]}"
+            echo ""
+            echo "💡 Make sure n8n is running and accessible"
+            exit 1
+          fi
+          
+          # Set output for next steps
+          echo "n8n_api_url=$N8N_API_ENDPOINT" >> $GITHUB_OUTPUT
+          echo "n8n_webhook_url=$N8N_API_ENDPOINT" >> $GITHUB_OUTPUT
+          
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      # CREATE N8N WORKFLOW JSON
+      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+      - name: Create n8n workflow definition
+        id: create_workflow_json
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "📝 Creating n8n workflow JSON..."
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          
+          # Create workflow JSON with Owntracks integration
+          # This structure follows n8n's workflow schema
+          cat > /tmp/owntracks_workflow.json << 'WORKFLOW_JSON'
+          {
+            "name": "Owntracks Location Tracker",
+            "nodes": [
+              {
+                "parameters": {
+                  "httpMethod": "POST",
+                  "path": "owntracks",
+                  "responseMode": "onReceived",
+                  "options": {
+                    "rawBody": false
+                  }
+                },
+                "id": "webhook-owntracks",
+                "name": "Webhook - Owntracks",
+                "type": "n8n-nodes-base.webhook",
+                "typeVersion": 1,
+                "position": [250, 300],
+                "webhookId": "owntracks-location"
+              },
+              {
+                "parameters": {
+                  "mode": "runOnceForEachItem",
+                  "jsCode": "// Owntracks Location Data Filter and Transformer\n// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nconst item = $input.item.json;\nconst MIN_ACCURACY = $env.MIN_ACCURACY || 100;  // meters\nconst MIN_DISTANCE = $env.MIN_DISTANCE || 50;    // meters\n\n// Log incoming data for debugging\nconsole.log('📍 Received Owntracks data:', JSON.stringify(item, null, 2));\n\n// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n// EXTRACT OWNTRACKS DATA\n// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n// Owntracks sends data in this format:\n// {\n//   \"_type\": \"location\",\n//   \"lat\": 51.5074,\n//   \"lon\": -0.1278,\n//   \"acc\": 10,\n//   \"tst\": 1234567890,\n//   \"alt\": 100,\n//   \"vel\": 0,\n//   \"batt\": 85,\n//   \"tid\": \"JF\",\n//   \"t\": \"u\"\n// }\n\nconst data = {\n  type: item._type || 'location',\n  latitude: item.lat,\n  longitude: item.lon,\n  accuracy: item.acc,\n  timestamp: item.tst,\n  altitude: item.alt,\n  velocity: item.vel,\n  battery: item.batt,\n  tracker_id: item.tid,\n  trigger: item.t  // 'u' = user, 'p' = ping, 't' = timer, etc.\n};\n\n// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n// VALIDATION\n// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nconst validationErrors = [];\n\nif (!data.latitude || !data.longitude) {\n  validationErrors.push('Missing latitude or longitude');\n}\n\nif (data.latitude < -90 || data.latitude > 90) {\n  validationErrors.push('Invalid latitude: ' + data.latitude);\n}\n\nif (data.longitude < -180 || data.longitude > 180) {\n  validationErrors.push('Invalid longitude: ' + data.longitude);\n}\n\nif (validationErrors.length > 0) {\n  console.error('❌ Validation errors:', validationErrors);\n  return {\n    json: {\n      error: 'Validation failed',\n      details: validationErrors,\n      skip: true\n    }\n  };\n}\n\n// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n// FILTERING LOGIC\n// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nconst shouldSkip = [];\n\n// Filter 1: GPS Accuracy\n// Skip if accuracy is worse than threshold (higher = worse)\nif (data.accuracy && data.accuracy > MIN_ACCURACY) {\n  shouldSkip.push(`Low accuracy: ${data.accuracy}m > ${MIN_ACCURACY}m`);\n}\n\n// Filter 2: Check if this is a significant movement\n// (This would ideally compare with last known position from storage)\n// For now, we'll accept all validated locations\n\n// Filter 3: Ignore certain trigger types if needed\n// For example, skip 'p' (ping) updates if you only want manual/timer\nconst ignoredTriggers = [];  // e.g., ['p'] to ignore pings\nif (data.trigger && ignoredTriggers.includes(data.trigger)) {\n  shouldSkip.push(`Ignored trigger type: ${data.trigger}`);\n}\n\nif (shouldSkip.length > 0) {\n  console.log('⏭️  Skipping location update:', shouldSkip);\n  return {\n    json: {\n      skip: true,\n      reason: shouldSkip,\n      data: data\n    }\n  };\n}\n\n// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n// TRANSFORM FOR POKE\n// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n// Convert timestamp to ISO format\nconst timestamp = data.timestamp \n  ? new Date(data.timestamp * 1000).toISOString()\n  : new Date().toISOString();\n\n// Format data for Poke API\nconst pokePayload = {\n  type: 'location_update',\n  source: 'owntracks',\n  timestamp: timestamp,\n  location: {\n    latitude: data.latitude,\n    longitude: data.longitude,\n    accuracy: data.accuracy,\n    altitude: data.altitude,\n    velocity: data.velocity\n  },\n  device: {\n    tracker_id: data.tracker_id,\n    battery: data.battery,\n    trigger: data.trigger\n  },\n  metadata: {\n    raw_timestamp: data.timestamp,\n    processed_at: new Date().toISOString()\n  }\n};\n\nconsole.log('✅ Location update passed filters');\nconsole.log('📤 Sending to Poke:', JSON.stringify(pokePayload, null, 2));\n\nreturn {\n  json: {\n    skip: false,\n    poke_payload: pokePayload,\n    original_data: data\n  }\n};"
+                },
+                "id": "filter-location",
+                "name": "Filter Location Data",
+                "type": "n8n-nodes-base.code",
+                "typeVersion": 2,
+                "position": [450, 300]
+              },
+              {
+                "parameters": {
+                  "conditions": {
+                    "boolean": [
+                      {
+                        "value1": "={{ $json.skip }}",
+                        "value2": false
+                      }
+                    ]
+                  }
+                },
+                "id": "check-skip",
+                "name": "Should Send?",
+                "type": "n8n-nodes-base.if",
+                "typeVersion": 1,
+                "position": [650, 300]
+              },
+              {
+                "parameters": {
+                  "url": "={{ $env.POKE_API_URL || 'http://localhost:8000/api/location' }}",
+                  "authentication": "genericCredentialType",
+                  "genericAuthType": "httpHeaderAuth",
+                  "sendHeaders": true,
+                  "headerParameters": {
+                    "parameters": [
+                      {
+                        "name": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ]
+                  },
+                  "sendBody": true,
+                  "bodyParameters": {
+                    "parameters": []
+                  },
+                  "options": {
+                    "response": {
+                      "response": {
+                        "fullResponse": true,
+                        "neverError": false
+                      }
+                    },
+                    "timeout": 10000
+                  },
+                  "method": "POST",
+                  "body": "={{ JSON.stringify($json.poke_payload) }}"
+                },
+                "id": "send-to-poke",
+                "name": "Send to Poke",
+                "type": "n8n-nodes-base.httpRequest",
+                "typeVersion": 4,
+                "position": [850, 200],
+                "credentials": {
+                  "httpHeaderAuth": {
+                    "id": "poke-api-key",
+                    "name": "Poke API Key"
+                  }
+                }
+              },
+              {
+                "parameters": {
+                  "mode": "runOnceForEachItem",
+                  "jsCode": "// Success handler\nconst item = $input.item.json;\n\nconsole.log('✅ Successfully sent to Poke');\nconsole.log('Response:', JSON.stringify(item, null, 2));\n\nreturn {\n  json: {\n    success: true,\n    status: item.statusCode || 200,\n    message: 'Location update sent to Poke',\n    timestamp: new Date().toISOString()\n  }\n};"
+                },
+                "id": "log-success",
+                "name": "Log Success",
+                "type": "n8n-nodes-base.code",
+                "typeVersion": 2,
+                "position": [1050, 200]
+              },
+              {
+                "parameters": {
+                  "mode": "runOnceForEachItem",
+                  "jsCode": "// Skipped handler\nconst item = $input.item.json;\n\nconsole.log('⏭️  Location update skipped');\nconsole.log('Reason:', item.reason || 'No reason provided');\n\nreturn {\n  json: {\n    skipped: true,\n    reason: item.reason,\n    timestamp: new Date().toISOString()\n  }\n};"
+                },
+                "id": "log-skipped",
+                "name": "Log Skipped",
+                "type": "n8n-nodes-base.code",
+                "typeVersion": 2,
+                "position": [850, 400]
+              },
+              {
+                "parameters": {
+                  "mode": "runOnceForEachItem",
+                  "jsCode": "// Error handler\nconst error = $input.item.json;\n\nconsole.error('❌ Error processing location update');\nconsole.error('Error:', JSON.stringify(error, null, 2));\n\n// Return error details\nreturn {\n  json: {\n    error: true,\n    message: error.message || 'Unknown error',\n    details: error,\n    timestamp: new Date().toISOString()\n  }\n};"
+                },
+                "id": "handle-error",
+                "name": "Handle Error",
+                "type": "n8n-nodes-base.code",
+                "typeVersion": 2,
+                "position": [1050, 300]
+              }
+            ],
+            "connections": {
+              "Webhook - Owntracks": {
+                "main": [
+                  [
+                    {
+                      "node": "Filter Location Data",
+                      "type": "main",
+                      "index": 0
+                    }
+                  ]
+                ]
+              },
+              "Filter Location Data": {
+                "main": [
+                  [
+                    {
+                      "node": "Should Send?",
+                      "type": "main",
+                      "index": 0
+                    }
+                  ]
+                ]
+              },
+              "Should Send?": {
+                "main": [
+                  [
+                    {
+                      "node": "Send to Poke",
+                      "type": "main",
+                      "index": 0
+                    }
+                  ],
+                  [
+                    {
+                      "node": "Log Skipped",
+                      "type": "main",
+                      "index": 0
+                    }
+                  ]
+                ]
+              },
+              "Send to Poke": {
+                "main": [
+                  [
+                    {
+                      "node": "Log Success",
+                      "type": "main",
+                      "index": 0
+                    }
+                  ]
+                ]
+              }
+            },
+            "settings": {
+              "executionOrder": "v1",
+              "saveManualExecutions": true,
+              "callerPolicy": "workflowsFromSameOwner",
+              "errorWorkflow": ""
+            },
+            "staticData": null,
+            "tags": [
+              {
+                "name": "owntracks",
+                "id": "owntracks-tag"
+              },
+              {
+                "name": "location",
+                "id": "location-tag"
+              }
+            ],
+            "meta": {
+              "instanceId": "n8n-owntracks-integration"
+            }
+          }
+          WORKFLOW_JSON
+          
+          echo "✅ Workflow JSON created at /tmp/owntracks_workflow.json"
+          echo ""
+          echo "📊 Workflow Summary:"
+          echo "   Name: Owntracks Location Tracker"
+          echo "   Nodes: 7"
+          echo "   - Webhook (POST /owntracks)"
+          echo "   - Filter/Transform (JavaScript)"
+          echo "   - Conditional routing"
+          echo "   - HTTP Request to Poke"
+          echo "   - Success/Error/Skip handlers"
+          echo ""
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      # CHECK FOR EXISTING WORKFLOW
+      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+      - name: Check for existing workflow
+        id: check_existing
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "🔍 Checking for existing 'Owntracks Location Tracker' workflow..."
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          
+          N8N_API="${{ steps.detect_n8n.outputs.n8n_api_url }}/api/v1"
+          
+          # List all workflows
+          response=$(curl -s -w "\nHTTP_STATUS:%{http_code}\n" \
+            -H "Accept: application/json" \
+            -H "X-N8N-API-KEY: ${{ secrets.N8N_API_KEY }}" \
+            "$N8N_API/workflows" 2>/dev/null || echo "HTTP_STATUS:000")
+          
+          status=$(echo "$response" | tail -n1 | sed 's/HTTP_STATUS://')
+          body=$(echo "$response" | sed '$d')
+          
+          echo "API Response Status: $status"
+          
+          if [[ "$status" == "200" ]]; then
+            echo "✅ Successfully retrieved workflows"
+            
+            # Parse JSON to find workflow by name
+            # Note: This requires jq, which is available in GitHub Actions
+            existing_id=$(echo "$body" | jq -r '.data[] | select(.name == "Owntracks Location Tracker") | .id' || echo "")
+            
+            if [ ! -z "$existing_id" ]; then
+              echo "📍 Found existing workflow with ID: $existing_id"
+              echo "existing_workflow_id=$existing_id" >> $GITHUB_OUTPUT
+              echo "workflow_exists=true" >> $GITHUB_OUTPUT
+            else
+              echo "📍 No existing workflow found"
+              echo "workflow_exists=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "⚠️  Could not retrieve workflows (Status: $status)"
+            echo "Response: $body"
+            echo "workflow_exists=false" >> $GITHUB_OUTPUT
+          fi
+          
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      # DEPLOY WORKFLOW TO N8N
+      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+      - name: Deploy workflow to n8n
+        id: deploy_workflow
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "🚀 Deploying workflow to n8n..."
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          
+          N8N_API="${{ steps.detect_n8n.outputs.n8n_api_url }}/api/v1"
+          WORKFLOW_JSON=$(cat /tmp/owntracks_workflow.json)
+          
+          # Inject environment variables into workflow
+          WORKFLOW_JSON=$(echo "$WORKFLOW_JSON" | jq \
+            --arg min_acc "${{ inputs.min_accuracy }}" \
+            --arg min_dist "${{ inputs.min_distance }}" \
+            '.settings.env = {"MIN_ACCURACY": $min_acc, "MIN_DISTANCE": $min_dist}')
+          
+          echo "📝 Workflow configuration:"
+          echo "   MIN_ACCURACY: ${{ inputs.min_accuracy }}m"
+          echo "   MIN_DISTANCE: ${{ inputs.min_distance }}m"
+          echo ""
+          
+          # Determine if we're creating or updating
+          if [[ "${{ steps.check_existing.outputs.workflow_exists }}" == "true" ]] && [[ "${{ inputs.update_existing }}" == "true" ]]; then
+            WORKFLOW_ID="${{ steps.check_existing.outputs.existing_workflow_id }}"
+            METHOD="PATCH"
+            ENDPOINT="$N8N_API/workflows/$WORKFLOW_ID"
+            echo "🔄 Updating existing workflow (ID: $WORKFLOW_ID)"
+          else
+            METHOD="POST"
+            ENDPOINT="$N8N_API/workflows"
+            echo "✨ Creating new workflow"
+          fi
+          
+          echo ""
+          echo "📤 Sending workflow to n8n..."
+          echo "   Method: $METHOD"
+          echo "   Endpoint: $ENDPOINT"
+          echo ""
+          
+          # Deploy workflow
+          response=$(curl -s -w "\nHTTP_STATUS:%{http_code}\n" \
+            -X "$METHOD" \
+            -H "Content-Type: application/json" \
+            -H "Accept: application/json" \
+            -H "X-N8N-API-KEY: ${{ secrets.N8N_API_KEY }}" \
+            -d "$WORKFLOW_JSON" \
+            "$ENDPOINT" 2>/dev/null || echo "HTTP_STATUS:000")
+          
+          status=$(echo "$response" | tail -n1 | sed 's/HTTP_STATUS://')
+          body=$(echo "$response" | sed '$d')
+          
+          echo "API Response Status: $status"
+          echo ""
+          
+          if [[ "$status" == "200" ]] || [[ "$status" == "201" ]]; then
+            echo "✅ Workflow deployed successfully!"
+            
+            # Extract workflow ID from response
+            workflow_id=$(echo "$body" | jq -r '.data.id // .id')
+            workflow_name=$(echo "$body" | jq -r '.data.name // .name')
+            
+            echo "   Workflow ID: $workflow_id"
+            echo "   Workflow Name: $workflow_name"
+            
+            # Set outputs
+            echo "workflow_id=$workflow_id" >> $GITHUB_OUTPUT
+            echo "workflow_name=$workflow_name" >> $GITHUB_OUTPUT
+            
+          else
+            echo "❌ Failed to deploy workflow"
+            echo "   Status: $status"
+            echo "   Response: $body"
+            exit 1
+          fi
+          
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      # ACTIVATE WORKFLOW
+      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+      - name: Activate workflow
+        if: ${{ inputs.activate_workflow }}
+        id: activate_workflow
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "⚡ Activating workflow..."
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          
+          N8N_API="${{ steps.detect_n8n.outputs.n8n_api_url }}/api/v1"
+          WORKFLOW_ID="${{ steps.deploy_workflow.outputs.workflow_id }}"
+          
+          # Activate workflow by updating its active status
+          response=$(curl -s -w "\nHTTP_STATUS:%{http_code}\n" \
+            -X PATCH \
+            -H "Content-Type: application/json" \
+            -H "Accept: application/json" \
+            -H "X-N8N-API-KEY: ${{ secrets.N8N_API_KEY }}" \
+            -d '{"active": true}' \
+            "$N8N_API/workflows/$WORKFLOW_ID" 2>/dev/null || echo "HTTP_STATUS:000")
+          
+          status=$(echo "$response" | tail -n1 | sed 's/HTTP_STATUS://')
+          body=$(echo "$response" | sed '$d')
+          
+          echo "API Response Status: $status"
+          
+          if [[ "$status" == "200" ]] || [[ "$status" == "201" ]]; then
+            echo "✅ Workflow activated successfully!"
+            is_active=$(echo "$body" | jq -r '.data.active // .active')
+            echo "   Active status: $is_active"
+          else
+            echo "⚠️  Failed to activate workflow"
+            echo "   Status: $status"
+            echo "   Response: $body"
+            echo "   (Workflow was deployed but not activated)"
+          fi
+          
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      # GET WEBHOOK URL
+      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+      - name: Get webhook URL
+        id: get_webhook_url
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "🔗 Retrieving webhook URL..."
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          
+          N8N_BASE_URL="${{ steps.detect_n8n.outputs.n8n_webhook_url }}"
+          WORKFLOW_ID="${{ steps.deploy_workflow.outputs.workflow_id }}"
+          
+          # Construct webhook URL
+          # n8n webhook URLs follow the pattern: http://host:port/webhook/path
+          # or http://host:port/webhook-test/path for test webhooks
+          
+          WEBHOOK_PATH="owntracks"
+          WEBHOOK_URL_PROD="$N8N_BASE_URL/webhook/$WEBHOOK_PATH"
+          WEBHOOK_URL_TEST="$N8N_BASE_URL/webhook-test/$WEBHOOK_PATH"
+          
+          echo "📍 Production Webhook URL:"
+          echo "   $WEBHOOK_URL_PROD"
+          echo ""
+          echo "🧪 Test Webhook URL:"
+          echo "   $WEBHOOK_URL_TEST"
+          echo ""
+          
+          # Set outputs
+          echo "webhook_url_prod=$WEBHOOK_URL_PROD" >> $GITHUB_OUTPUT
+          echo "webhook_url_test=$WEBHOOK_URL_TEST" >> $GITHUB_OUTPUT
+          
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      # TEST WEBHOOK
+      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+      - name: Test webhook
+        continue-on-error: true
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "🧪 Testing webhook with sample Owntracks data..."
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          
+          WEBHOOK_URL="${{ steps.get_webhook_url.outputs.webhook_url_test }}"
+          
+          # Sample Owntracks location payload
+          cat > /tmp/test_payload.json << 'TEST_PAYLOAD'
+          {
+            "_type": "location",
+            "lat": 48.8566,
+            "lon": 2.3522,
+            "acc": 10,
+            "tst": 1708290000,
+            "alt": 35,
+            "vel": 0,
+            "batt": 85,
+            "tid": "JF",
+            "t": "u"
+          }
+          TEST_PAYLOAD
+          
+          echo "📤 Sending test payload:"
+          cat /tmp/test_payload.json | jq .
+          echo ""
+          
+          response=$(curl -s -w "\nHTTP_STATUS:%{http_code}\n" \
+            -X POST \
+            -H "Content-Type: application/json" \
+            -d @/tmp/test_payload.json \
+            "$WEBHOOK_URL" 2>/dev/null || echo "HTTP_STATUS:000")
+          
+          status=$(echo "$response" | tail -n1 | sed 's/HTTP_STATUS://')
+          body=$(echo "$response" | sed '$d')
+          
+          echo "Webhook Response Status: $status"
+          echo "Response Body: $body"
+          
+          if [[ "$status" == "200" ]] || [[ "$status" == "201" ]]; then
+            echo "✅ Webhook test successful!"
+          else
+            echo "⚠️  Webhook test returned status $status"
+            echo "   This might be expected if the workflow requires activation first"
+          fi
+          
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      # CLEANUP
+      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+      - name: Cleanup SSH keys
+        if: always()
+        run: |
+          echo "🧹 Cleaning up SSH keys..."
+          rm -f ~/.ssh/deploy_key
+          echo "✅ Cleanup complete"
+
+      - name: Cleanup temporary files
+        if: always()
+        run: |
+          echo "🧹 Cleaning up temporary files..."
+          rm -f /tmp/owntracks_workflow.json
+          rm -f /tmp/test_payload.json
+          echo "✅ Cleanup complete"
+
+      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      # DEPLOYMENT SUMMARY
+      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+      - name: Deployment summary
+        if: success()
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "🎉 DEPLOYMENT SUCCESSFUL!"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo ""
+          echo "📊 Workflow Details:"
+          echo "   Name: ${{ steps.deploy_workflow.outputs.workflow_name }}"
+          echo "   ID: ${{ steps.deploy_workflow.outputs.workflow_id }}"
+          echo "   Status: ${{ inputs.activate_workflow && 'Active' || 'Inactive' }}"
+          echo ""
+          echo "🔗 Webhook URLs:"
+          echo "   Production: ${{ steps.get_webhook_url.outputs.webhook_url_prod }}"
+          echo "   Test: ${{ steps.get_webhook_url.outputs.webhook_url_test }}"
+          echo ""
+          echo "⚙️  Configuration:"
+          echo "   Min GPS Accuracy: ${{ inputs.min_accuracy }}m"
+          echo "   Min Distance Change: ${{ inputs.min_distance }}m"
+          echo ""
+          echo "📱 Owntracks Configuration:"
+          echo "   1. Open Owntracks app"
+          echo "   2. Go to Settings → Connection"
+          echo "   3. Set Mode: HTTP"
+          echo "   4. Set URL: ${{ steps.get_webhook_url.outputs.webhook_url_prod }}"
+          echo "   5. Set Method: POST"
+          echo "   6. (Optional) Add authentication if configured"
+          echo ""
+          echo "🔧 Next Steps:"
+          echo "   1. Configure Poke API endpoint in n8n workflow settings"
+          echo "      Environment variable: POKE_API_URL"
+          echo "   2. Set up Poke API authentication credentials in n8n"
+          echo "   3. Test the integration by sending a location update from Owntracks"
+          echo "   4. Monitor n8n execution logs for any issues"
+          echo ""
+          echo "📝 Environment Variables in n8n:"
+          echo "   - MIN_ACCURACY: Filter locations with accuracy > this value"
+          echo "   - MIN_DISTANCE: Minimum distance change to send update"
+          echo "   - POKE_API_URL: Poke API endpoint for location updates"
+          echo ""
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+      - name: Deployment failure notice
+        if: failure()
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "❌ DEPLOYMENT FAILED!"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo ""
+          echo "Please check the logs above for details."
+          echo ""
+          echo "Common issues:"
+          echo "   1. N8N_API_KEY secret not set or invalid"
+          echo "   2. n8n API not accessible"
+          echo "   3. Invalid workflow JSON structure"
+          echo "   4. n8n not running on VM"
+          echo ""
+          echo "Troubleshooting:"
+          echo "   - Verify N8N_API_KEY is set in GitHub Secrets"
+          echo "   - Check n8n is running: ssh ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }}"
+          echo "   - Test n8n API manually: curl -H 'X-N8N-API-KEY: YOUR_KEY' http://VM_HOST:5678/api/v1/workflows"
+          echo "   - Review n8n logs for errors"
+          echo ""
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          exit 1
