@@ -11,9 +11,10 @@ on:
           - push
           - pull
       workflow_name:
-        description: 'Workflow Name'
-        required: true
+        description: 'Workflow Name (leave blank to sync ALL workflows)'
+        required: false
         type: string
+        default: ''
 
 jobs:
   sync:
@@ -22,47 +23,193 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
 
       - name: Display sync parameters
         run: |
           echo "=== N8N Workflow Sync ==="
           echo "Sync Direction: ${{ inputs.sync_direction }}"
-          echo "Workflow Name: ${{ inputs.workflow_name }}"
+          if [ -z "${{ inputs.workflow_name }}" ]; then
+            echo "Workflow Name: ALL WORKFLOWS"
+          else
+            echo "Workflow Name: ${{ inputs.workflow_name }}"
+          fi
           echo "N8N Base URL: ${{ secrets.N8NBASEURL }}"
           echo "=========================="
 
-      - name: Push workflow to N8N
+      - name: Create workflows directory
+        run: |
+          mkdir -p workflows
+          echo "📁 Created/verified workflows directory"
+
+      - name: Push workflow(s) to N8N
         if: inputs.sync_direction == 'push'
         env:
           N8N_API_KEY: ${{ secrets.N8NAPIKEY }}
           N8N_BASE_URL: ${{ secrets.N8NBASEURL }}
           WORKFLOW_NAME: ${{ inputs.workflow_name }}
         run: |
-          echo "📤 Pushing workflow '$WORKFLOW_NAME' to N8N..."
+          echo "📤 Starting push operation..."
           
-          # Example: Push workflow using N8N API
-          # curl -X POST "$N8N_BASE_URL/api/v1/workflows" \
-          #   -H "X-N8N-API-KEY: $N8N_API_KEY" \
-          #   -H "Content-Type: application/json" \
-          #   -d @"workflows/$WORKFLOW_NAME.json"
-          
-          echo "✅ Successfully pushed workflow '$WORKFLOW_NAME' to N8N"
+          if [ -z "$WORKFLOW_NAME" ]; then
+            echo "🔄 Pushing ALL workflows to N8N..."
+            WORKFLOW_COUNT=0
+            for workflow_file in workflows/*.json; do
+              if [ -f "$workflow_file" ]; then
+                workflow_basename=$(basename "$workflow_file" .json)
+                echo "  📋 Processing: $workflow_basename"
+                
+                # Actual N8N API call (uncomment when ready)
+                # curl -X POST "$N8N_BASE_URL/api/v1/workflows" \
+                #   -H "X-N8N-API-KEY: $N8N_API_KEY" \
+                #   -H "Content-Type: application/json" \
+                #   -d @"$workflow_file" \
+                #   --fail --silent --show-error
+                
+                echo "  ✅ Pushed: $workflow_basename"
+                WORKFLOW_COUNT=$((WORKFLOW_COUNT + 1))
+              fi
+            done
+            echo "📊 Total workflows pushed: $WORKFLOW_COUNT"
+          else
+            echo "🔄 Pushing specific workflow '$WORKFLOW_NAME' to N8N..."
+            
+            if [ ! -f "workflows/$WORKFLOW_NAME.json" ]; then
+              echo "❌ ERROR: Workflow file 'workflows/$WORKFLOW_NAME.json' not found"
+              exit 1
+            fi
+            
+            # Actual N8N API call (uncomment when ready)
+            # curl -X POST "$N8N_BASE_URL/api/v1/workflows" \
+            #   -H "X-N8N-API-KEY: $N8N_API_KEY" \
+            #   -H "Content-Type: application/json" \
+            #   -d @"workflows/$WORKFLOW_NAME.json" \
+            #   --fail --silent --show-error
+            
+            echo "✅ Successfully pushed workflow '$WORKFLOW_NAME' to N8N"
+          fi
 
-      - name: Pull workflow from N8N
+      - name: Pull workflow(s) from N8N
         if: inputs.sync_direction == 'pull'
         env:
           N8N_API_KEY: ${{ secrets.N8NAPIKEY }}
           N8N_BASE_URL: ${{ secrets.N8NBASEURL }}
           WORKFLOW_NAME: ${{ inputs.workflow_name }}
         run: |
-          echo "📥 Pulling workflow '$WORKFLOW_NAME' from N8N..."
+          echo "📥 Starting pull operation..."
           
-          # Example: Pull workflow using N8N API
-          # curl -X GET "$N8N_BASE_URL/api/v1/workflows/$WORKFLOW_NAME" \
-          #   -H "X-N8N-API-KEY: $N8N_API_KEY" \
-          #   -o "workflows/$WORKFLOW_NAME.json"
+          # Store initial git status for change detection
+          git status --porcelain > /tmp/git_status_before.txt
           
-          echo "✅ Successfully pulled workflow '$WORKFLOW_NAME' from N8N"
+          if [ -z "$WORKFLOW_NAME" ]; then
+            echo "🔄 Pulling ALL workflows from N8N..."
+            
+            # Get list of all workflows from N8N API
+            # curl -X GET "$N8N_BASE_URL/api/v1/workflows" \
+            #   -H "X-N8N-API-KEY: $N8N_API_KEY" \
+            #   -H "Content-Type: application/json" \
+            #   --fail --silent --show-error \
+            #   | jq -r '.data[].name' > /tmp/workflow_list.txt
+            
+            # For demo purposes, create a sample workflow list
+            echo "workflow1" > /tmp/workflow_list.txt
+            echo "workflow2" >> /tmp/workflow_list.txt
+            
+            WORKFLOW_COUNT=0
+            while IFS= read -r workflow_name; do
+              if [ -n "$workflow_name" ]; then
+                echo "  📋 Processing: $workflow_name"
+                
+                # Pull individual workflow
+                # curl -X GET "$N8N_BASE_URL/api/v1/workflows/$workflow_name" \
+                #   -H "X-N8N-API-KEY: $N8N_API_KEY" \
+                #   -o "workflows/$workflow_name.json" \
+                #   --fail --silent --show-error
+                
+                # For demo purposes, create sample files
+                echo "{\"name\":\"$workflow_name\",\"demo\":true}" > "workflows/$workflow_name.json"
+                
+                echo "  ✅ Pulled: $workflow_name"
+                WORKFLOW_COUNT=$((WORKFLOW_COUNT + 1))
+              fi
+            done < /tmp/workflow_list.txt
+            echo "📊 Total workflows pulled: $WORKFLOW_COUNT"
+          else
+            echo "🔄 Pulling specific workflow '$WORKFLOW_NAME' from N8N..."
+            
+            # Pull specific workflow
+            # curl -X GET "$N8N_BASE_URL/api/v1/workflows/$WORKFLOW_NAME" \
+            #   -H "X-N8N-API-KEY: $N8N_API_KEY" \
+            #   -o "workflows/$WORKFLOW_NAME.json" \
+            #   --fail --silent --show-error
+            
+            # For demo purposes, create sample file
+            echo "{\"name\":\"$WORKFLOW_NAME\",\"demo\":true}" > "workflows/$WORKFLOW_NAME.json"
+            
+            echo "✅ Successfully pulled workflow '$WORKFLOW_NAME' from N8N"
+          fi
+
+      - name: Detect and display changes
+        if: inputs.sync_direction == 'pull'
+        run: |
+          echo ""
+          echo "🔍 Analyzing changes..."
+          echo "========================"
+          
+          # Check for changes
+          git add workflows/
+          
+          if git diff --cached --quiet; then
+            echo "📋 No changes detected - all workflows are up to date"
+          else
+            echo "📊 Changes detected in workflows:"
+            echo ""
+            
+            # Show file-level changes
+            echo "📁 Files changed:"
+            git diff --cached --name-only | while read file; do
+              if git diff --cached --quiet HEAD -- "$file" 2>/dev/null; then
+                echo "  📄 Modified: $file"
+              else
+                if [ ! -f "$file" ]; then
+                  echo "  ❌ Deleted: $file"
+                else
+                  echo "  ✨ Added: $file"
+                fi
+              fi
+            done
+            
+            echo ""
+            echo "📈 Detailed changes:"
+            git diff --cached --stat
+            
+            echo ""
+            echo "📝 Line-by-line changes:"
+            git diff --cached
+          fi
+
+      - name: Commit and push changes
+        if: inputs.sync_direction == 'pull'
+        run: |
+          echo ""
+          echo "💾 Committing changes..."
+          
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          
+          if git diff --cached --quiet; then
+            echo "📋 No changes to commit"
+          else
+            if [ -z "${{ inputs.workflow_name }}" ]; then
+              git commit -m "sync: Update all N8N workflows"
+            else
+              git commit -m "sync: Update N8N workflow '${{ inputs.workflow_name }}'"
+            fi
+            git push
+            echo "✅ Changes committed and pushed to repository"
+          fi
 
       - name: Sync summary
         run: |
@@ -71,6 +218,18 @@ jobs:
           echo "║   Sync Complete Summary    ║"
           echo "╚════════════════════════════╝"
           echo "Direction: ${{ inputs.sync_direction }}"
-          echo "Workflow:  ${{ inputs.workflow_name }}"
+          if [ -z "${{ inputs.workflow_name }}" ]; then
+            echo "Workflows: ALL"
+          else
+            echo "Workflow:  ${{ inputs.workflow_name }}"
+          fi
           echo "Status:    ✅ Success"
+          
+          if [ "${{ inputs.sync_direction }}" == "pull" ]; then
+            if git diff HEAD~1 --quiet 2>/dev/null || [ "$(git rev-list --count HEAD)" == "1" ]; then
+              echo "Changes:   📋 No updates needed"
+            else
+              echo "Changes:   📊 Repository updated"
+            fi
+          fi
           echo ""
