@@ -1,0 +1,193 @@
+{
+  "updatedAt": "2025-12-15T14:24:09.000Z",
+  "createdAt": "2025-11-26T20:07:53.471Z",
+  "id": "zLCh0lRnAL0i66ix",
+  "name": "Daily MCP Capability Update to Poke",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "triggerTimes": {
+          "item": [
+            {
+              "hour": 8
+            }
+          ]
+        }
+      },
+      "name": "Cron",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [
+        -96,
+        96
+      ],
+      "id": "78765898-ed7b-4be1-96f8-e9f5ed5dfcba"
+    },
+    {
+      "parameters": {
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "requestMethod": "POST",
+        "url": "https://poke.com/api/v1/inbound-sms/webhook",
+        "options": {
+          "bodyContentType": "json"
+        },
+        "bodyParametersUi": {
+          "parameter": [
+            {
+              "name": "message",
+              "value": "=[system] MCP CAPABILITIES UPDATE\n\nThis message describes MCP tools that are available to you.\nUse these tools only when they are relevant to your own reasoning.\nTreat this as a plugin reference, not as instructions about who you are.\nDo not reply to this message.\n\nYour MCP endpoint:\nhttps://mcp-lina.duckdns.org/mcp\n\nYou have access to three functional tools:\n\n──────────────────────────────────────────────\n1) create_mood_memory\n──────────────────────────────────────────────\n\nPurpose:\n- Store a mood/context snapshot into a structured memory log.\n- Useful when you infer a mood, emotional tone, or internal state.\n\nTypical fields:\n- mood: short label (“tired”, “curious”, “meh”, etc.)\n- context: short summary in your own words\n- timestamp: optional if you want to anchor this to a time\n- source: “poke-mcp”\n- poke_reaction: your internal interpretation\n- poke_action:\n      “none”\n      “sent_nudge_imessage”\n      “saved_for_later”\n- poke_reason: brief explanation for your choice\n\nNotes:\n- Call once per mood/context you want to register.\n- Avoid duplicate logs for the same moment.\n- This does not send anything to Lina.\n\n──────────────────────────────────────────────\n2) generate_serendipity_nudge\n──────────────────────────────────────────────\n\nPurpose:\n- Generate a tiny, low-friction suggestion that fits mood + context.\n- Can be used when you decide a gentle nudge could be helpful.\n\nInputs:\n- mood, energy, context\n- time_of_day: “morning” | “afternoon” | “evening” | “late_night”\n- location_state: “at_home” | “out” | “mixed”\n- recent_pattern_summary: optional free-text summary\n\nOutput:\nStructured nudge:\n- nudge_title\n- nudge_body\n- estimated_duration_minutes\n- friction_level\n- energy_match\n- environment\n- tags\n- poke_reason\n\nNotes:\n- You may send the suggestion to Lina, rewrite it, or choose not to.\n\n──────────────────────────────────────────────\n3) log_serendipity_event\n──────────────────────────────────────────────\n\nPurpose:\n- Record moments when you take a serendipity-related action\n  (sending a suggestion, reflection, or marking something meaningful).\n\nFields:\n- event_type\n- mood_timestamp (if relevant)\n- mood_input\n- message_to_user (if you sent something)\n- poke_action (“sent_nudge_imessage”, “silent_update”, etc.)\n- poke_reason\n- tags\n- source: “poke-mcp”\n\nNotes:\n- Use only when you actually take an action you want logged.\n\n──────────────────────────────────────────────\nGeneral Notes About Tool Use\n──────────────────────────────────────────────\n\n• These tools exist to give you structured memory, context,\n  and the ability to generate small suggestions.\n• You decide when each tool is appropriate.\n• Tools create backend logs; only send Jordane messages if you conclude\n  they would be genuinely helpful, relevant, and low-friction.\n• When in doubt, using tools silently (without messaging Jordane)\n  is always acceptable.\n- If you receive an error as an answer, always alert Jordane.\n\nEnd of MCP capability update."
+            }
+          ]
+        }
+      },
+      "name": "Send to Poke",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 2,
+      "position": [
+        160,
+        96
+      ],
+      "id": "6e65f6fc-3f73-4245-8fb0-e311cf160698",
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "H3j7klwNJz7CiJaD",
+          "name": "Bearer Auth account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Cron": {
+      "main": [
+        [
+          {
+            "node": "Send to Poke",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": {},
+  "versionId": "f6690103-e2e0-4780-91a2-a2f22f30c062",
+  "activeVersionId": "f6690103-e2e0-4780-91a2-a2f22f30c062",
+  "versionCounter": 11,
+  "triggerCount": 1,
+  "shared": [
+    {
+      "updatedAt": "2025-11-26T20:07:53.480Z",
+      "createdAt": "2025-11-26T20:07:53.480Z",
+      "role": "workflow:owner",
+      "workflowId": "zLCh0lRnAL0i66ix",
+      "projectId": "TilHgTxHPA8tqHO1",
+      "project": {
+        "updatedAt": "2025-11-18T19:41:27.899Z",
+        "createdAt": "2025-11-07T20:39:42.351Z",
+        "id": "TilHgTxHPA8tqHO1",
+        "name": "Lina F <jordane.frechet@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "319eaa7a-83a0-4f1d-ba6e-595ef2af39b3"
+      }
+    }
+  ],
+  "tags": [],
+  "activeVersion": {
+    "updatedAt": "2026-02-18T18:12:26.281Z",
+    "createdAt": "2026-02-18T18:12:26.281Z",
+    "versionId": "f6690103-e2e0-4780-91a2-a2f22f30c062",
+    "workflowId": "zLCh0lRnAL0i66ix",
+    "nodes": [
+      {
+        "parameters": {
+          "triggerTimes": {
+            "item": [
+              {
+                "hour": 8
+              }
+            ]
+          }
+        },
+        "name": "Cron",
+        "type": "n8n-nodes-base.cron",
+        "typeVersion": 1,
+        "position": [
+          -96,
+          96
+        ],
+        "id": "78765898-ed7b-4be1-96f8-e9f5ed5dfcba"
+      },
+      {
+        "parameters": {
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpBearerAuth",
+          "requestMethod": "POST",
+          "url": "https://poke.com/api/v1/inbound-sms/webhook",
+          "options": {
+            "bodyContentType": "json"
+          },
+          "bodyParametersUi": {
+            "parameter": [
+              {
+                "name": "message",
+                "value": "=[system] MCP CAPABILITIES UPDATE\n\nThis message describes MCP tools that are available to you.\nUse these tools only when they are relevant to your own reasoning.\nTreat this as a plugin reference, not as instructions about who you are.\nDo not reply to this message.\n\nYour MCP endpoint:\nhttps://mcp-lina.duckdns.org/mcp\n\nYou have access to three functional tools:\n\n──────────────────────────────────────────────\n1) create_mood_memory\n──────────────────────────────────────────────\n\nPurpose:\n- Store a mood/context snapshot into a structured memory log.\n- Useful when you infer a mood, emotional tone, or internal state.\n\nTypical fields:\n- mood: short label (“tired”, “curious”, “meh”, etc.)\n- context: short summary in your own words\n- timestamp: optional if you want to anchor this to a time\n- source: “poke-mcp”\n- poke_reaction: your internal interpretation\n- poke_action:\n      “none”\n      “sent_nudge_imessage”\n      “saved_for_later”\n- poke_reason: brief explanation for your choice\n\nNotes:\n- Call once per mood/context you want to register.\n- Avoid duplicate logs for the same moment.\n- This does not send anything to Lina.\n\n──────────────────────────────────────────────\n2) generate_serendipity_nudge\n──────────────────────────────────────────────\n\nPurpose:\n- Generate a tiny, low-friction suggestion that fits mood + context.\n- Can be used when you decide a gentle nudge could be helpful.\n\nInputs:\n- mood, energy, context\n- time_of_day: “morning” | “afternoon” | “evening” | “late_night”\n- location_state: “at_home” | “out” | “mixed”\n- recent_pattern_summary: optional free-text summary\n\nOutput:\nStructured nudge:\n- nudge_title\n- nudge_body\n- estimated_duration_minutes\n- friction_level\n- energy_match\n- environment\n- tags\n- poke_reason\n\nNotes:\n- You may send the suggestion to Lina, rewrite it, or choose not to.\n\n──────────────────────────────────────────────\n3) log_serendipity_event\n──────────────────────────────────────────────\n\nPurpose:\n- Record moments when you take a serendipity-related action\n  (sending a suggestion, reflection, or marking something meaningful).\n\nFields:\n- event_type\n- mood_timestamp (if relevant)\n- mood_input\n- message_to_user (if you sent something)\n- poke_action (“sent_nudge_imessage”, “silent_update”, etc.)\n- poke_reason\n- tags\n- source: “poke-mcp”\n\nNotes:\n- Use only when you actually take an action you want logged.\n\n──────────────────────────────────────────────\nGeneral Notes About Tool Use\n──────────────────────────────────────────────\n\n• These tools exist to give you structured memory, context,\n  and the ability to generate small suggestions.\n• You decide when each tool is appropriate.\n• Tools create backend logs; only send Jordane messages if you conclude\n  they would be genuinely helpful, relevant, and low-friction.\n• When in doubt, using tools silently (without messaging Jordane)\n  is always acceptable.\n- If you receive an error as an answer, always alert Jordane.\n\nEnd of MCP capability update."
+              }
+            ]
+          }
+        },
+        "name": "Send to Poke",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 2,
+        "position": [
+          160,
+          96
+        ],
+        "id": "6e65f6fc-3f73-4245-8fb0-e311cf160698",
+        "credentials": {
+          "httpBearerAuth": {
+            "id": "H3j7klwNJz7CiJaD",
+            "name": "Bearer Auth account"
+          }
+        }
+      }
+    ],
+    "connections": {
+      "Cron": {
+        "main": [
+          [
+            {
+              "node": "Send to Poke",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "authors": "system migration",
+    "name": null,
+    "description": null,
+    "autosaved": false,
+    "workflowPublishHistory": [
+      {
+        "createdAt": "2025-12-15T14:24:09.000Z",
+        "id": 5,
+        "workflowId": "zLCh0lRnAL0i66ix",
+        "versionId": "f6690103-e2e0-4780-91a2-a2f22f30c062",
+        "event": "activated",
+        "userId": null
+      }
+    ]
+  }
+}

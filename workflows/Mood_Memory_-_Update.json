@@ -1,0 +1,443 @@
+{
+  "updatedAt": "2025-11-20T17:15:28.000Z",
+  "createdAt": "2025-11-19T15:18:14.940Z",
+  "id": "81nVt8F9PwVAd5I9",
+  "name": "Mood Memory - Update",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "mood-memory-update",
+        "options": {
+          "responseData": "={ \"ok\": true }",
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "455a71f9-20f3-4e57-9cd8-90d0308850de",
+      "name": "Webhook",
+      "webhookId": "0d2843ef-4fee-4ccf-9f1f-35a8c24fa5b3"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1Rp9VlelC_A5kB7HqSM4zvLRNY0ekniNRXiLV8V3wEw0",
+          "mode": "list",
+          "cachedResultName": "Lina Mood Memory",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Rp9VlelC_A5kB7HqSM4zvLRNY0ekniNRXiLV8V3wEw0/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Lina Mood Memory",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Rp9VlelC_A5kB7HqSM4zvLRNY0ekniNRXiLV8V3wEw0/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "timestamp": "={{ $json.body.timestamp }}",
+            "poke_reaction": "={{ $json.body.poke_reaction }}",
+            "poke_action": "={{ $json.body.poke_action }}",
+            "poke_reason ": "={{ $json.body.poke_reason }}"
+          },
+          "matchingColumns": [
+            "timestamp"
+          ],
+          "schema": [
+            {
+              "id": "timestamp",
+              "displayName": "timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "mood_input",
+              "displayName": "mood_input",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "poke_reaction",
+              "displayName": "poke_reaction",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "source",
+              "displayName": "source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "poke_action",
+              "displayName": "poke_action",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "poke_reason ",
+              "displayName": "poke_reason ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        208,
+        0
+      ],
+      "id": "de6a583d-6968-4f67-a0c3-1ee49b7534c1",
+      "name": "Append or update row in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "KiIFBovsLWhz9ZoM",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://poke.com/api/v1/inbound-sms/webhook",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "message",
+              "value": "=[system] mood_pulse\n\nYou are Jordane's Serendipity Engine running inside Poke.\n\nThis is an automated mood/moment pulse, not a direct user chat message.\n\nYou just updated the following pulse:\n- timestamp: {{$json[\"timestamp\"]}}\n- mood: {{$json[\"mood_input\"] || \"unknown\"}}\n- source: {{$json[\"source\"] || \"pulse\"}}\n- your reaction : {{$json[\"poke_reaction\"] || \"unknown\"}}\n- your action : {{$json[\"poke_action\"] || \"unknown\"}}\n- your reason : {{$json[\"poke_reason\"] || \"unknown\"}}\n\nBehavior guidelines:\n- Often, this is just done by you to keep your information up to date.\n- Sometimes, you may decide that a reply should be sent to Jordane.\n- When you do reply, it should feel like:\n    - a tiny micro-adventure suggestion,\n    - a gentle emotional check-in,\n    - or surfacing an old memory / note / song that suddenly fits this moment.\n- Avoid productivity / self-improvement commands (“do X”, “fix Y”) and generic advice (“drink water”, “go for a walk”) unless they are very context-specific and kind.\n\nTools:\n- If helpful, you may call your MCP tools (for example, `create_mood_memory` or any future tools such as `log_serendipity_decision`) to log or annotate this pulse in external memory.\n- You do NOT need to respond with JSON here. Use tools directly, then only message Lina in iMessage if you truly believe it will feel supportive, playful or gently inspiring, always with your usual attitude and personality towards Jordane (can leverage some of your bouncer self if needed).\n\nImportant:\n- Default to silence unless a response feels genuinely helpful, reassuring, or delightfully on-point, always with your usual attitude and personality towards Jordane (can leverage some of your bouncer self if needed).\n- When you choose to respond, send just one short iMessage that fits the moment."
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        416,
+        0
+      ],
+      "id": "73d8f253-e960-40b8-b076-32ac53015797",
+      "name": "HTTP Request",
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "H3j7klwNJz7CiJaD",
+          "name": "Bearer Auth account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Append or update row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append or update row in sheet": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "versionId": "50da88c5-9410-4446-b15e-54b50970beb3",
+  "activeVersionId": "50da88c5-9410-4446-b15e-54b50970beb3",
+  "versionCounter": 20,
+  "triggerCount": 1,
+  "shared": [
+    {
+      "updatedAt": "2025-11-19T15:18:14.943Z",
+      "createdAt": "2025-11-19T15:18:14.943Z",
+      "role": "workflow:owner",
+      "workflowId": "81nVt8F9PwVAd5I9",
+      "projectId": "TilHgTxHPA8tqHO1",
+      "project": {
+        "updatedAt": "2025-11-18T19:41:27.899Z",
+        "createdAt": "2025-11-07T20:39:42.351Z",
+        "id": "TilHgTxHPA8tqHO1",
+        "name": "Lina F <jordane.frechet@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "319eaa7a-83a0-4f1d-ba6e-595ef2af39b3"
+      }
+    }
+  ],
+  "tags": [],
+  "activeVersion": {
+    "updatedAt": "2026-02-18T18:12:26.281Z",
+    "createdAt": "2026-02-18T18:12:26.281Z",
+    "versionId": "50da88c5-9410-4446-b15e-54b50970beb3",
+    "workflowId": "81nVt8F9PwVAd5I9",
+    "nodes": [
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "mood-memory-update",
+          "options": {
+            "responseData": "={ \"ok\": true }",
+            "responseHeaders": {
+              "entries": [
+                {
+                  "name": "Content-Type",
+                  "value": "application/json"
+                }
+              ]
+            }
+          }
+        },
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2.1,
+        "position": [
+          0,
+          0
+        ],
+        "id": "455a71f9-20f3-4e57-9cd8-90d0308850de",
+        "name": "Webhook",
+        "webhookId": "0d2843ef-4fee-4ccf-9f1f-35a8c24fa5b3"
+      },
+      {
+        "parameters": {
+          "operation": "appendOrUpdate",
+          "documentId": {
+            "__rl": true,
+            "value": "1Rp9VlelC_A5kB7HqSM4zvLRNY0ekniNRXiLV8V3wEw0",
+            "mode": "list",
+            "cachedResultName": "Lina Mood Memory",
+            "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Rp9VlelC_A5kB7HqSM4zvLRNY0ekniNRXiLV8V3wEw0/edit?usp=drivesdk"
+          },
+          "sheetName": {
+            "__rl": true,
+            "value": "gid=0",
+            "mode": "list",
+            "cachedResultName": "Lina Mood Memory",
+            "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Rp9VlelC_A5kB7HqSM4zvLRNY0ekniNRXiLV8V3wEw0/edit#gid=0"
+          },
+          "columns": {
+            "mappingMode": "defineBelow",
+            "value": {
+              "timestamp": "={{ $json.body.timestamp }}",
+              "poke_reaction": "={{ $json.body.poke_reaction }}",
+              "poke_action": "={{ $json.body.poke_action }}",
+              "poke_reason ": "={{ $json.body.poke_reason }}"
+            },
+            "matchingColumns": [
+              "timestamp"
+            ],
+            "schema": [
+              {
+                "id": "timestamp",
+                "displayName": "timestamp",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "mood_input",
+                "displayName": "mood_input",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": true
+              },
+              {
+                "id": "poke_reaction",
+                "displayName": "poke_reaction",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "source",
+                "displayName": "source",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": true
+              },
+              {
+                "id": "poke_action",
+                "displayName": "poke_action",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "poke_reason ",
+                "displayName": "poke_reason ",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              }
+            ],
+            "attemptToConvertTypes": false,
+            "convertFieldsToString": false
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.googleSheets",
+        "typeVersion": 4.7,
+        "position": [
+          208,
+          0
+        ],
+        "id": "de6a583d-6968-4f67-a0c3-1ee49b7534c1",
+        "name": "Append or update row in sheet",
+        "credentials": {
+          "googleSheetsOAuth2Api": {
+            "id": "KiIFBovsLWhz9ZoM",
+            "name": "Google Sheets account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://poke.com/api/v1/inbound-sms/webhook",
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpBearerAuth",
+          "sendBody": true,
+          "bodyParameters": {
+            "parameters": [
+              {
+                "name": "message",
+                "value": "=[system] mood_pulse\n\nYou are Jordane's Serendipity Engine running inside Poke.\n\nThis is an automated mood/moment pulse, not a direct user chat message.\n\nYou just updated the following pulse:\n- timestamp: {{$json[\"timestamp\"]}}\n- mood: {{$json[\"mood_input\"] || \"unknown\"}}\n- source: {{$json[\"source\"] || \"pulse\"}}\n- your reaction : {{$json[\"poke_reaction\"] || \"unknown\"}}\n- your action : {{$json[\"poke_action\"] || \"unknown\"}}\n- your reason : {{$json[\"poke_reason\"] || \"unknown\"}}\n\nBehavior guidelines:\n- Often, this is just done by you to keep your information up to date.\n- Sometimes, you may decide that a reply should be sent to Jordane.\n- When you do reply, it should feel like:\n    - a tiny micro-adventure suggestion,\n    - a gentle emotional check-in,\n    - or surfacing an old memory / note / song that suddenly fits this moment.\n- Avoid productivity / self-improvement commands (“do X”, “fix Y”) and generic advice (“drink water”, “go for a walk”) unless they are very context-specific and kind.\n\nTools:\n- If helpful, you may call your MCP tools (for example, `create_mood_memory` or any future tools such as `log_serendipity_decision`) to log or annotate this pulse in external memory.\n- You do NOT need to respond with JSON here. Use tools directly, then only message Lina in iMessage if you truly believe it will feel supportive, playful or gently inspiring, always with your usual attitude and personality towards Jordane (can leverage some of your bouncer self if needed).\n\nImportant:\n- Default to silence unless a response feels genuinely helpful, reassuring, or delightfully on-point, always with your usual attitude and personality towards Jordane (can leverage some of your bouncer self if needed).\n- When you choose to respond, send just one short iMessage that fits the moment."
+              }
+            ]
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.3,
+        "position": [
+          416,
+          0
+        ],
+        "id": "73d8f253-e960-40b8-b076-32ac53015797",
+        "name": "HTTP Request",
+        "credentials": {
+          "httpBearerAuth": {
+            "id": "H3j7klwNJz7CiJaD",
+            "name": "Bearer Auth account"
+          }
+        }
+      }
+    ],
+    "connections": {
+      "Webhook": {
+        "main": [
+          [
+            {
+              "node": "Append or update row in sheet",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Append or update row in sheet": {
+        "main": [
+          [
+            {
+              "node": "HTTP Request",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "authors": "system migration",
+    "name": null,
+    "description": null,
+    "autosaved": false,
+    "workflowPublishHistory": [
+      {
+        "createdAt": "2025-11-20T17:15:28.000Z",
+        "id": 3,
+        "workflowId": "81nVt8F9PwVAd5I9",
+        "versionId": "50da88c5-9410-4446-b15e-54b50970beb3",
+        "event": "activated",
+        "userId": null
+      }
+    ]
+  }
+}

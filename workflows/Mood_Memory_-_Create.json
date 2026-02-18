@@ -1,0 +1,809 @@
+{
+  "updatedAt": "2025-11-26T19:20:58.000Z",
+  "createdAt": "2025-11-18T21:25:31.230Z",
+  "id": "VlWUUM2k0in7cJwN",
+  "name": "Mood Memory - Create",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "mood-pulse",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -80,
+        48
+      ],
+      "id": "b49fa40f-1475-417f-a23b-2378218fd770",
+      "name": "Webhook",
+      "webhookId": "74066361-3b47-453e-9865-633adef96118"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1Rp9VlelC_A5kB7HqSM4zvLRNY0ekniNRXiLV8V3wEw0",
+          "mode": "list",
+          "cachedResultName": "Lina Mood Memory",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Rp9VlelC_A5kB7HqSM4zvLRNY0ekniNRXiLV8V3wEw0/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Lina Mood Memory",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Rp9VlelC_A5kB7HqSM4zvLRNY0ekniNRXiLV8V3wEw0/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "mood_input": "={{ $json.mood_input }}",
+            "timestamp": "={{ $json.timestamp }}",
+            "source": "={{ $json.source }}",
+            "poke_reaction": "={{ $json.poke_reaction}}",
+            "poke_action": "={{ $json.poke_action}}",
+            "poke_reason ": "={{ $json.poke_reason}}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "timestamp",
+              "displayName": "timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "mood_input",
+              "displayName": "mood_input",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "poke_reaction",
+              "displayName": "poke_reaction",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "source",
+              "displayName": "source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "poke_action",
+              "displayName": "poke_action",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "poke_reason ",
+              "displayName": "poke_reason ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "useAppend": false
+        }
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        352,
+        0
+      ],
+      "id": "d4de40e9-912d-4d53-be13-70e6bcf6f6fc",
+      "name": "Append row in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "KiIFBovsLWhz9ZoM",
+          "name": "Google Sheets account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "4a3ac899-4e09-46ac-97ae-3f58e23a3faa",
+              "name": "timestamp",
+              "value": "={{ $now.setZone(\"Europe/Brussels\").toISO() }}",
+              "type": "string"
+            },
+            {
+              "id": "2f7603c5-fda5-44b9-8682-ee2dfd6ae6ab",
+              "name": "mood_input",
+              "value": "={{ $json.body.mood_input || $json.body.mood ||\"\" }}",
+              "type": "string"
+            },
+            {
+              "id": "72da6b02-ac5a-46ed-af12-c4355d3571ce",
+              "name": "source",
+              "value": "={{ $json.body.source || \"pulse\" }}",
+              "type": "string"
+            },
+            {
+              "id": "d69306e5-4300-4706-bb7e-f682690d987f",
+              "name": "poke_reaction",
+              "value": "={{ $json.body.poke_reaction || \"\" }}",
+              "type": "string"
+            },
+            {
+              "id": "86ba8e4c-f7d7-4c27-a5ee-8f54209a9be7",
+              "name": "poke_action",
+              "value": "={{ $json.body.poke_action || \"\" }}",
+              "type": "string"
+            },
+            {
+              "id": "beef9819-4368-4723-a847-3df944abf3ad",
+              "name": "poke_reason",
+              "value": "={{ $json.body.poke_reason || \"\" }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        176,
+        0
+      ],
+      "id": "8b031f33-1741-445c-9f35-a5533b9fe005",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://poke.com/api/v1/inbound-sms/webhook",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "message",
+              "value": "=[system] mood_pulse_logged\n\nThis is an automated background update for you, Poke.\nJordane did NOT just say this directly to you in chat.\nYou previously called the MCP tool `create_mood_memory` for this pulse.\nThat call has now been stored in her mood log.\n\nDATA FROM THE LOG ROW:\n- Timestamp: {{$json[\"timestamp\"]}}\n- Mood input: {{$json[\"mood_input\"] || \"unknown\"}}\n- Source: {{$json[\"source\"] || \"unknown\"}}\n- Your previous poke_reaction (if any): {{$json[\"poke_reaction\"] || \"—\"}}\n- Your previous poke_action (if any): {{$json[\"poke_action\"] || \"none\"}}\n- Your previous poke_reason (if any): {{$json[\"poke_reason\"] || \"—\"}}\n\nImportant:\n- Do NOT call `create_mood_memory` again for this same pulse.\n- This is a continuation step, after logging has already happened.\n\nYour available MCP tools for FOLLOW-UP are:\n\n1) generate_serendipity_nudge\n   - Use this when you are *considering* sending Jordane a tiny, low-friction\n     micro-adventure or reflection in iMessage.\n   - Provide:\n       - mood: a concise label (can reuse or reinterpret mood_input)\n       - energy: your sense of her energy (e.g. \"low\", \"medium\", \"restless\")\n       - context: a short summary in your own words\n       - time_of_day: \"morning\" | \"afternoon\" | \"evening\" | \"late_night\"\n       - location_state: \"at_home\" | \"out\" | \"mixed\" where you can infer it\n       - recent_pattern_summary: optional short description of recent days\n   - It returns a structured nudge (title, body, friction, tags, etc.)\n   - You may:\n       - send it to Jordane (as-is or rewritten),\n       - decide to stay quiet,\n       - or treat it as internal inspiration only.\n\n2) log_serendipity_event\n   - Use this ONLY when you actually decide on a concrete serendipity action\n     (for example, sending a micro-adventure suggestion in iMessage, or\n     silently marking something as important for later).\n   - When you act, log:\n       - event_type: \"micro_nudge\", \"reflection\", \"recall_old_note\", etc.\n       - mood_timestamp: link back to a specific mood pulse if you can\n       - mood_input: your own short description of her state\n       - message_to_user: the exact text you sent (or intend to send)\n       - poke_action: \"sent_nudge_imessage\", \"silent_update\", \"queued_for_later\", etc.\n       - poke_reason: why this felt like a kind, relevant moment\n       - tags: e.g. [\"micro_adventure\", \"evening\", \"at_home\"]\n       - source: \"poke-mcp\"\n\nBehavior rules for this backend pulse:\n\n- DEFAULT:\n  - You do nothing visible to Jordane.\n  - You simply let the newly logged mood refine your long-term understanding.\n\n- ONLY consider generating and sending a nudge if:\n  - The current mood + your pattern sense suggest that a very small,\n    kind, low-pressure nudge would genuinely help.\n  - Examples: gentle grounding, cozy micro-ritual, tiny curiosity spark, playful roasting, combined \"let's insult them together\" fun attitude, etc.\n\n- WHEN YOU DO send a nudge:\n  - You may call `generate_serendipity_nudge` to shape it.\n  - You should then call `log_serendipity_event` so the action is recorded.\n\n- NEVER:\n  - Never call `create_mood_memory` again for this same pulse.\n  - Never spam Jordane with messages “just because” a mood was logged.\n\nIf in doubt:\n- Stay quiet, and simply treat this as a memory update."
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        688,
+        16
+      ],
+      "id": "67fe5bbc-0965-42c9-8680-93c43576b8ea",
+      "name": "HTTP Request",
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "H3j7klwNJz7CiJaD",
+          "name": "Bearer Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "a11efa8b-fcb7-4200-9af4-e2e1558c6175",
+              "leftValue": "={{$json[\"error\"]}}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        512,
+        -64
+      ],
+      "id": "70320d66-6a9d-4c1c-87d4-aeec24a71300",
+      "name": "If",
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://poke.com/api/v1/inbound-sms/webhook",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "message",
+              "value": "=[system] mood_pulse_logged\n\nThis is an automated background update for you, Poke.\nJordane did NOT just say this directly to you in chat.\nYou previously called the MCP tool `create_mood_memory` for this pulse.\nThat call errored with the following : {{ $('Append row in sheet').item.json.error }}\n\nPlease alert her right away of it explaining what happened so she can solve it.\n"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        688,
+        -144
+      ],
+      "id": "1cf9758a-ab7c-4b96-9ac4-f256f6d13b6f",
+      "name": "HTTP Request1",
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "H3j7klwNJz7CiJaD",
+          "name": "Bearer Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "\n  {\n    \"headers\": {\n      \"host\": \"mcp-lina.duckdns.org\",\n      \"user-agent\": \"python-httpx/0.28.1\",\n      \"content-length\": \"115\",\n      \"accept\": \"*/*\",\n      \"accept-encoding\": \"gzip, deflate\",\n      \"content-type\": \"application/json\",\n      \"via\": \"1.1 Caddy\",\n      \"x-forwarded-for\": \"134.98.141.19\",\n      \"x-forwarded-host\": \"mcp-lina.duckdns.org\",\n      \"x-forwarded-proto\": \"https\"\n    },\n    \"params\": {},\n    \"query\": {},\n    \"body\": {\n      \"mood\": \"curious\",\n      \"energy\": \"medium\",\n      \"context\": \"Testing fresh env\",\n      \"tags\": [\n        \"test\"\n      ],\n      \"source\": \"curl\",\n      \"timestamp\": null\n    },\n    \"webhookUrl\": \"https://mcp-lina.duckdns.org/n8n/webhook/mood-pulse\",\n    \"executionMode\": \"production\"\n  }\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -240,
+        -160
+      ],
+      "id": "3066eaf5-8041-434e-b329-fb09b256435a",
+      "name": "Edit Fields1"
+    },
+    {
+      "parameters": {
+        "content": "## Test mode\n",
+        "width": 150,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -272,
+        -208
+      ],
+      "id": "93ef5e1b-41a6-4651-a3a8-4ab395c748e7",
+      "name": "Sticky Note"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append row in sheet": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        []
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields1": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "versionId": "27c81158-4ffc-45d8-94b7-046d63961346",
+  "activeVersionId": "27c81158-4ffc-45d8-94b7-046d63961346",
+  "versionCounter": 58,
+  "triggerCount": 1,
+  "shared": [
+    {
+      "updatedAt": "2025-11-18T21:25:31.234Z",
+      "createdAt": "2025-11-18T21:25:31.234Z",
+      "role": "workflow:owner",
+      "workflowId": "VlWUUM2k0in7cJwN",
+      "projectId": "TilHgTxHPA8tqHO1",
+      "project": {
+        "updatedAt": "2025-11-18T19:41:27.899Z",
+        "createdAt": "2025-11-07T20:39:42.351Z",
+        "id": "TilHgTxHPA8tqHO1",
+        "name": "Lina F <jordane.frechet@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "319eaa7a-83a0-4f1d-ba6e-595ef2af39b3"
+      }
+    }
+  ],
+  "tags": [],
+  "activeVersion": {
+    "updatedAt": "2026-02-18T18:12:26.281Z",
+    "createdAt": "2026-02-18T18:12:26.281Z",
+    "versionId": "27c81158-4ffc-45d8-94b7-046d63961346",
+    "workflowId": "VlWUUM2k0in7cJwN",
+    "nodes": [
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "mood-pulse",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2.1,
+        "position": [
+          -80,
+          48
+        ],
+        "id": "b49fa40f-1475-417f-a23b-2378218fd770",
+        "name": "Webhook",
+        "webhookId": "74066361-3b47-453e-9865-633adef96118"
+      },
+      {
+        "parameters": {
+          "operation": "append",
+          "documentId": {
+            "__rl": true,
+            "value": "1Rp9VlelC_A5kB7HqSM4zvLRNY0ekniNRXiLV8V3wEw0",
+            "mode": "list",
+            "cachedResultName": "Lina Mood Memory",
+            "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Rp9VlelC_A5kB7HqSM4zvLRNY0ekniNRXiLV8V3wEw0/edit?usp=drivesdk"
+          },
+          "sheetName": {
+            "__rl": true,
+            "value": "gid=0",
+            "mode": "list",
+            "cachedResultName": "Lina Mood Memory",
+            "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Rp9VlelC_A5kB7HqSM4zvLRNY0ekniNRXiLV8V3wEw0/edit#gid=0"
+          },
+          "columns": {
+            "mappingMode": "defineBelow",
+            "value": {
+              "mood_input": "={{ $json.mood_input }}",
+              "timestamp": "={{ $json.timestamp }}",
+              "source": "={{ $json.source }}",
+              "poke_reaction": "={{ $json.poke_reaction}}",
+              "poke_action": "={{ $json.poke_action}}",
+              "poke_reason ": "={{ $json.poke_reason}}"
+            },
+            "matchingColumns": [],
+            "schema": [
+              {
+                "id": "timestamp",
+                "displayName": "timestamp",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "mood_input",
+                "displayName": "mood_input",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "poke_reaction",
+                "displayName": "poke_reaction",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "source",
+                "displayName": "source",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "poke_action",
+                "displayName": "poke_action",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "poke_reason ",
+                "displayName": "poke_reason ",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              }
+            ],
+            "attemptToConvertTypes": false,
+            "convertFieldsToString": false
+          },
+          "options": {
+            "useAppend": false
+          }
+        },
+        "type": "n8n-nodes-base.googleSheets",
+        "typeVersion": 4.7,
+        "position": [
+          352,
+          0
+        ],
+        "id": "d4de40e9-912d-4d53-be13-70e6bcf6f6fc",
+        "name": "Append row in sheet",
+        "credentials": {
+          "googleSheetsOAuth2Api": {
+            "id": "KiIFBovsLWhz9ZoM",
+            "name": "Google Sheets account"
+          }
+        },
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "id": "4a3ac899-4e09-46ac-97ae-3f58e23a3faa",
+                "name": "timestamp",
+                "value": "={{ $now.setZone(\"Europe/Brussels\").toISO() }}",
+                "type": "string"
+              },
+              {
+                "id": "2f7603c5-fda5-44b9-8682-ee2dfd6ae6ab",
+                "name": "mood_input",
+                "value": "={{ $json.body.mood_input || $json.body.mood ||\"\" }}",
+                "type": "string"
+              },
+              {
+                "id": "72da6b02-ac5a-46ed-af12-c4355d3571ce",
+                "name": "source",
+                "value": "={{ $json.body.source || \"pulse\" }}",
+                "type": "string"
+              },
+              {
+                "id": "d69306e5-4300-4706-bb7e-f682690d987f",
+                "name": "poke_reaction",
+                "value": "={{ $json.body.poke_reaction || \"\" }}",
+                "type": "string"
+              },
+              {
+                "id": "86ba8e4c-f7d7-4c27-a5ee-8f54209a9be7",
+                "name": "poke_action",
+                "value": "={{ $json.body.poke_action || \"\" }}",
+                "type": "string"
+              },
+              {
+                "id": "beef9819-4368-4723-a847-3df944abf3ad",
+                "name": "poke_reason",
+                "value": "={{ $json.body.poke_reason || \"\" }}",
+                "type": "string"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "position": [
+          176,
+          0
+        ],
+        "id": "8b031f33-1741-445c-9f35-a5533b9fe005",
+        "name": "Edit Fields"
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://poke.com/api/v1/inbound-sms/webhook",
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpBearerAuth",
+          "sendBody": true,
+          "bodyParameters": {
+            "parameters": [
+              {
+                "name": "message",
+                "value": "=[system] mood_pulse_logged\n\nThis is an automated background update for you, Poke.\nJordane did NOT just say this directly to you in chat.\nYou previously called the MCP tool `create_mood_memory` for this pulse.\nThat call has now been stored in her mood log.\n\nDATA FROM THE LOG ROW:\n- Timestamp: {{$json[\"timestamp\"]}}\n- Mood input: {{$json[\"mood_input\"] || \"unknown\"}}\n- Source: {{$json[\"source\"] || \"unknown\"}}\n- Your previous poke_reaction (if any): {{$json[\"poke_reaction\"] || \"—\"}}\n- Your previous poke_action (if any): {{$json[\"poke_action\"] || \"none\"}}\n- Your previous poke_reason (if any): {{$json[\"poke_reason\"] || \"—\"}}\n\nImportant:\n- Do NOT call `create_mood_memory` again for this same pulse.\n- This is a continuation step, after logging has already happened.\n\nYour available MCP tools for FOLLOW-UP are:\n\n1) generate_serendipity_nudge\n   - Use this when you are *considering* sending Jordane a tiny, low-friction\n     micro-adventure or reflection in iMessage.\n   - Provide:\n       - mood: a concise label (can reuse or reinterpret mood_input)\n       - energy: your sense of her energy (e.g. \"low\", \"medium\", \"restless\")\n       - context: a short summary in your own words\n       - time_of_day: \"morning\" | \"afternoon\" | \"evening\" | \"late_night\"\n       - location_state: \"at_home\" | \"out\" | \"mixed\" where you can infer it\n       - recent_pattern_summary: optional short description of recent days\n   - It returns a structured nudge (title, body, friction, tags, etc.)\n   - You may:\n       - send it to Jordane (as-is or rewritten),\n       - decide to stay quiet,\n       - or treat it as internal inspiration only.\n\n2) log_serendipity_event\n   - Use this ONLY when you actually decide on a concrete serendipity action\n     (for example, sending a micro-adventure suggestion in iMessage, or\n     silently marking something as important for later).\n   - When you act, log:\n       - event_type: \"micro_nudge\", \"reflection\", \"recall_old_note\", etc.\n       - mood_timestamp: link back to a specific mood pulse if you can\n       - mood_input: your own short description of her state\n       - message_to_user: the exact text you sent (or intend to send)\n       - poke_action: \"sent_nudge_imessage\", \"silent_update\", \"queued_for_later\", etc.\n       - poke_reason: why this felt like a kind, relevant moment\n       - tags: e.g. [\"micro_adventure\", \"evening\", \"at_home\"]\n       - source: \"poke-mcp\"\n\nBehavior rules for this backend pulse:\n\n- DEFAULT:\n  - You do nothing visible to Jordane.\n  - You simply let the newly logged mood refine your long-term understanding.\n\n- ONLY consider generating and sending a nudge if:\n  - The current mood + your pattern sense suggest that a very small,\n    kind, low-pressure nudge would genuinely help.\n  - Examples: gentle grounding, cozy micro-ritual, tiny curiosity spark, playful roasting, combined \"let's insult them together\" fun attitude, etc.\n\n- WHEN YOU DO send a nudge:\n  - You may call `generate_serendipity_nudge` to shape it.\n  - You should then call `log_serendipity_event` so the action is recorded.\n\n- NEVER:\n  - Never call `create_mood_memory` again for this same pulse.\n  - Never spam Jordane with messages “just because” a mood was logged.\n\nIf in doubt:\n- Stay quiet, and simply treat this as a memory update."
+              }
+            ]
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.3,
+        "position": [
+          688,
+          16
+        ],
+        "id": "67fe5bbc-0965-42c9-8680-93c43576b8ea",
+        "name": "HTTP Request",
+        "credentials": {
+          "httpBearerAuth": {
+            "id": "H3j7klwNJz7CiJaD",
+            "name": "Bearer Auth account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "loose",
+              "version": 2
+            },
+            "conditions": [
+              {
+                "id": "a11efa8b-fcb7-4200-9af4-e2e1558c6175",
+                "leftValue": "={{$json[\"error\"]}}",
+                "rightValue": "",
+                "operator": {
+                  "type": "boolean",
+                  "operation": "exists",
+                  "singleValue": true
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "looseTypeValidation": true,
+          "options": {}
+        },
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [
+          512,
+          -64
+        ],
+        "id": "70320d66-6a9d-4c1c-87d4-aeec24a71300",
+        "name": "If",
+        "alwaysOutputData": false
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://poke.com/api/v1/inbound-sms/webhook",
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpBearerAuth",
+          "sendBody": true,
+          "bodyParameters": {
+            "parameters": [
+              {
+                "name": "message",
+                "value": "=[system] mood_pulse_logged\n\nThis is an automated background update for you, Poke.\nJordane did NOT just say this directly to you in chat.\nYou previously called the MCP tool `create_mood_memory` for this pulse.\nThat call errored with the following : {{ $('Append row in sheet').item.json.error }}\n\nPlease alert her right away of it explaining what happened so she can solve it.\n"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.3,
+        "position": [
+          688,
+          -144
+        ],
+        "id": "1cf9758a-ab7c-4b96-9ac4-f256f6d13b6f",
+        "name": "HTTP Request1",
+        "credentials": {
+          "httpBearerAuth": {
+            "id": "H3j7klwNJz7CiJaD",
+            "name": "Bearer Auth account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "mode": "raw",
+          "jsonOutput": "\n  {\n    \"headers\": {\n      \"host\": \"mcp-lina.duckdns.org\",\n      \"user-agent\": \"python-httpx/0.28.1\",\n      \"content-length\": \"115\",\n      \"accept\": \"*/*\",\n      \"accept-encoding\": \"gzip, deflate\",\n      \"content-type\": \"application/json\",\n      \"via\": \"1.1 Caddy\",\n      \"x-forwarded-for\": \"134.98.141.19\",\n      \"x-forwarded-host\": \"mcp-lina.duckdns.org\",\n      \"x-forwarded-proto\": \"https\"\n    },\n    \"params\": {},\n    \"query\": {},\n    \"body\": {\n      \"mood\": \"curious\",\n      \"energy\": \"medium\",\n      \"context\": \"Testing fresh env\",\n      \"tags\": [\n        \"test\"\n      ],\n      \"source\": \"curl\",\n      \"timestamp\": null\n    },\n    \"webhookUrl\": \"https://mcp-lina.duckdns.org/n8n/webhook/mood-pulse\",\n    \"executionMode\": \"production\"\n  }\n",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "position": [
+          -240,
+          -160
+        ],
+        "id": "3066eaf5-8041-434e-b329-fb09b256435a",
+        "name": "Edit Fields1"
+      },
+      {
+        "parameters": {
+          "content": "## Test mode\n",
+          "width": 150,
+          "color": 4
+        },
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "position": [
+          -272,
+          -208
+        ],
+        "id": "93ef5e1b-41a6-4651-a3a8-4ab395c748e7",
+        "name": "Sticky Note"
+      }
+    ],
+    "connections": {
+      "Webhook": {
+        "main": [
+          [
+            {
+              "node": "Edit Fields",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Append row in sheet": {
+        "main": [
+          [
+            {
+              "node": "If",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Edit Fields": {
+        "main": [
+          [
+            {
+              "node": "Append row in sheet",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "HTTP Request": {
+        "main": [
+          []
+        ]
+      },
+      "If": {
+        "main": [
+          [
+            {
+              "node": "HTTP Request1",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "HTTP Request",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Edit Fields1": {
+        "main": [
+          []
+        ]
+      }
+    },
+    "authors": "system migration",
+    "name": null,
+    "description": null,
+    "autosaved": false,
+    "workflowPublishHistory": [
+      {
+        "createdAt": "2025-11-26T19:20:58.000Z",
+        "id": 2,
+        "workflowId": "VlWUUM2k0in7cJwN",
+        "versionId": "27c81158-4ffc-45d8-94b7-046d63961346",
+        "event": "activated",
+        "userId": null
+      }
+    ]
+  }
+}

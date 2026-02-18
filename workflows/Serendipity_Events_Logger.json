@@ -1,0 +1,409 @@
+{
+  "updatedAt": "2025-11-21T10:46:55.000Z",
+  "createdAt": "2025-11-21T10:44:21.283Z",
+  "id": "ha51roi4BhSEwe84",
+  "name": "Serendipity Events Logger",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "serendipity-event",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        272,
+        -176
+      ],
+      "id": "04bf1919-c038-41f7-be53-92f9af50e3d6",
+      "name": "Serendipity Event Webhook",
+      "webhookId": "REPLACE_WITH_UNIQUE_WEBHOOK_ID"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1Rp9VlelC_A5kB7HqSM4zvLRNY0ekniNRXiLV8V3wEw0",
+          "mode": "list",
+          "cachedResultName": "Lina Mood Memory",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Rp9VlelC_A5kB7HqSM4zvLRNY0ekniNRXiLV8V3wEw0/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 332512166,
+          "mode": "list",
+          "cachedResultName": "Serendipity Events",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Rp9VlelC_A5kB7HqSM4zvLRNY0ekniNRXiLV8V3wEw0/edit#gid=332512166"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "event_timestamp": "={{ $json.body[\"event_timestamp\"] || $json.body[\"timestamp\"] || $now.toISO() }}",
+            "mood_timestamp": "={{ $json.body[\"mood_timestamp\"] || \"\" }}",
+            "mood_input": "={{ $json.body[\"mood_input\"] || \"\" }}",
+            "source": "={{ $json.body[\"source\"] || \"\" }}",
+            "event_type": "={{ $json.body[\"event_type\"] || \"\" }}",
+            "message_to_user": "={{ $json.body[\"message_to_user\"] || \"\" }}",
+            "poke_action": "={{ $json.body[\"poke_action\"] || \"\" }}",
+            "poke_reason": "={{ $json.body[\"poke_reason\"] || $json.body[\"internal_reason\"] || \"\" }}",
+            "tags_json": "={{ JSON.stringify($json.body[\"tags\"] || []) }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "event_timestamp",
+              "displayName": "event_timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "mood_timestamp",
+              "displayName": "mood_timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "mood_input",
+              "displayName": "mood_input",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "source",
+              "displayName": "source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "event_type",
+              "displayName": "event_type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "message_to_user",
+              "displayName": "message_to_user",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "poke_action",
+              "displayName": "poke_action",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "poke_reason",
+              "displayName": "poke_reason",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "tags_json",
+              "displayName": "tags_json",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        640,
+        -176
+      ],
+      "id": "bd4b5185-8ae3-44c4-b18e-244a5510c246",
+      "name": "Append Serendipity Event to Sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "KiIFBovsLWhz9ZoM",
+          "name": "Google Sheets account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Serendipity Event Webhook": {
+      "main": [
+        [
+          {
+            "node": "Append Serendipity Event to Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "versionId": "adba96ba-b871-4704-83a4-75e6cd1b4a8f",
+  "activeVersionId": "adba96ba-b871-4704-83a4-75e6cd1b4a8f",
+  "versionCounter": 7,
+  "triggerCount": 1,
+  "shared": [
+    {
+      "updatedAt": "2025-11-21T10:44:21.448Z",
+      "createdAt": "2025-11-21T10:44:21.448Z",
+      "role": "workflow:owner",
+      "workflowId": "ha51roi4BhSEwe84",
+      "projectId": "TilHgTxHPA8tqHO1",
+      "project": {
+        "updatedAt": "2025-11-18T19:41:27.899Z",
+        "createdAt": "2025-11-07T20:39:42.351Z",
+        "id": "TilHgTxHPA8tqHO1",
+        "name": "Lina F <jordane.frechet@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "319eaa7a-83a0-4f1d-ba6e-595ef2af39b3"
+      }
+    }
+  ],
+  "tags": [],
+  "activeVersion": {
+    "updatedAt": "2026-02-18T18:12:26.281Z",
+    "createdAt": "2026-02-18T18:12:26.281Z",
+    "versionId": "adba96ba-b871-4704-83a4-75e6cd1b4a8f",
+    "workflowId": "ha51roi4BhSEwe84",
+    "nodes": [
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "serendipity-event",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          272,
+          -176
+        ],
+        "id": "04bf1919-c038-41f7-be53-92f9af50e3d6",
+        "name": "Serendipity Event Webhook",
+        "webhookId": "REPLACE_WITH_UNIQUE_WEBHOOK_ID"
+      },
+      {
+        "parameters": {
+          "operation": "append",
+          "documentId": {
+            "__rl": true,
+            "value": "1Rp9VlelC_A5kB7HqSM4zvLRNY0ekniNRXiLV8V3wEw0",
+            "mode": "list",
+            "cachedResultName": "Lina Mood Memory",
+            "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Rp9VlelC_A5kB7HqSM4zvLRNY0ekniNRXiLV8V3wEw0/edit?usp=drivesdk"
+          },
+          "sheetName": {
+            "__rl": true,
+            "value": 332512166,
+            "mode": "list",
+            "cachedResultName": "Serendipity Events",
+            "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Rp9VlelC_A5kB7HqSM4zvLRNY0ekniNRXiLV8V3wEw0/edit#gid=332512166"
+          },
+          "columns": {
+            "mappingMode": "defineBelow",
+            "value": {
+              "event_timestamp": "={{ $json.body[\"event_timestamp\"] || $json.body[\"timestamp\"] || $now.toISO() }}",
+              "mood_timestamp": "={{ $json.body[\"mood_timestamp\"] || \"\" }}",
+              "mood_input": "={{ $json.body[\"mood_input\"] || \"\" }}",
+              "source": "={{ $json.body[\"source\"] || \"\" }}",
+              "event_type": "={{ $json.body[\"event_type\"] || \"\" }}",
+              "message_to_user": "={{ $json.body[\"message_to_user\"] || \"\" }}",
+              "poke_action": "={{ $json.body[\"poke_action\"] || \"\" }}",
+              "poke_reason": "={{ $json.body[\"poke_reason\"] || $json.body[\"internal_reason\"] || \"\" }}",
+              "tags_json": "={{ JSON.stringify($json.body[\"tags\"] || []) }}"
+            },
+            "matchingColumns": [],
+            "schema": [
+              {
+                "id": "event_timestamp",
+                "displayName": "event_timestamp",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "mood_timestamp",
+                "displayName": "mood_timestamp",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "mood_input",
+                "displayName": "mood_input",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "source",
+                "displayName": "source",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "event_type",
+                "displayName": "event_type",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "message_to_user",
+                "displayName": "message_to_user",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "poke_action",
+                "displayName": "poke_action",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "poke_reason",
+                "displayName": "poke_reason",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "tags_json",
+                "displayName": "tags_json",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              }
+            ],
+            "attemptToConvertTypes": false,
+            "convertFieldsToString": false
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.googleSheets",
+        "typeVersion": 4.7,
+        "position": [
+          640,
+          -176
+        ],
+        "id": "bd4b5185-8ae3-44c4-b18e-244a5510c246",
+        "name": "Append Serendipity Event to Sheet",
+        "credentials": {
+          "googleSheetsOAuth2Api": {
+            "id": "KiIFBovsLWhz9ZoM",
+            "name": "Google Sheets account"
+          }
+        }
+      }
+    ],
+    "connections": {
+      "Serendipity Event Webhook": {
+        "main": [
+          [
+            {
+              "node": "Append Serendipity Event to Sheet",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "authors": "system migration",
+    "name": null,
+    "description": null,
+    "autosaved": false,
+    "workflowPublishHistory": [
+      {
+        "createdAt": "2025-11-21T10:46:55.000Z",
+        "id": 4,
+        "workflowId": "ha51roi4BhSEwe84",
+        "versionId": "adba96ba-b871-4704-83a4-75e6cd1b4a8f",
+        "event": "activated",
+        "userId": null
+      }
+    ]
+  }
+}

@@ -1,0 +1,688 @@
+{
+  "updatedAt": "2025-12-04T20:54:09.000Z",
+  "createdAt": "2025-12-04T18:17:12.961Z",
+  "id": "Og3lBFKpZApF1Gun",
+  "name": "Create GSheet Spreadsheet",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "create-sheet",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -192,
+        -32
+      ],
+      "id": "c5d06f64-e27e-4c88-ab1e-ec9a8feb3639",
+      "name": "Webhook",
+      "webhookId": "8e806082-5594-400b-ac6b-d43d9c952381",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "zw7qjmCFIsQxFnES",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Ensure columns is an array of strings, even if passed as comma string\nconst sheetName = $json.body.sheetName;\nlet cols = $json.body.columns;\n\nif (typeof cols === 'string') {\n  cols = cols.split(',').map(c => c.trim()).filter(Boolean);\n}\n\nreturn {\n    json: {\n      sheetName,\n      columns: cols,\n    }\n  }\n;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        64,
+        -32
+      ],
+      "id": "21add2d0-6394-4ab2-810e-5ed5712c8c7a",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "documentId": {
+          "__rl": true,
+          "value": "1Rp9VlelC_A5kB7HqSM4zvLRNY0ekniNRXiLV8V3wEw0",
+          "mode": "list",
+          "cachedResultName": "Lina Mood Memory",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Rp9VlelC_A5kB7HqSM4zvLRNY0ekniNRXiLV8V3wEw0/edit?usp=drivesdk"
+        },
+        "title": "={{ $json.sheetName }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        224,
+        -176
+      ],
+      "id": "477f7e27-c247-4c07-8c75-9e73c5e84db0",
+      "name": "Create sheet",
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "KiIFBovsLWhz9ZoM",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1Rp9VlelC_A5kB7HqSM4zvLRNY0ekniNRXiLV8V3wEw0",
+          "mode": "list",
+          "cachedResultName": "Lina Mood Memory",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Rp9VlelC_A5kB7HqSM4zvLRNY0ekniNRXiLV8V3wEw0/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "={{ $('Merge').item.json.sheetName }}",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "what",
+              "displayName": "what",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "is",
+              "displayName": "is",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "good",
+              "displayName": "good",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        704,
+        -64
+      ],
+      "id": "b5899c8e-a353-4db2-8345-e715d56134c3",
+      "name": "Append row in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "KiIFBovsLWhz9ZoM",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "allIncomingItems",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        1040,
+        -240
+      ],
+      "id": "67467641-38fe-45b4-bf6a-a0d40ef54c12",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "mode": "chooseBranch",
+        "useDataOfInput": 2
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        368,
+        -48
+      ],
+      "id": "3e330521-2fcc-4957-808f-e49e83ba176e",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Loop over input items and add a new field called 'myNewField' to the JSON of each one\nconst items = {}\n$json.columns.forEach((col) => {\n  items[col] = null;\n})\n\nreturn items;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        512,
+        32
+      ],
+      "id": "218552f9-c67f-4a6a-bd55-d3c05f04ea75",
+      "name": "Code in JavaScript1"
+    },
+    {
+      "parameters": {
+        "mode": "chooseBranch"
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        688,
+        -240
+      ],
+      "id": "93f0f091-944e-4a0d-b895-2ca2487c2338",
+      "name": "Merge1"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Add a new field called 'myNewField' to the JSON of the item\nconst url = `https://docs.google.com/spreadsheets/d/${$json.spreadsheetId}/edit?gid=${$json.sheetId}`\nreturn {url};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        -128
+      ],
+      "id": "a555465f-2ce5-4493-b79b-86445b7fc8ed",
+      "name": "Code in JavaScript2",
+      "alwaysOutputData": false
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Create sheet",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Create sheet": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append row in sheet": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge1": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript2": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Europe/Brussels",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "versionId": "55d35c75-6cbd-478b-b2a8-98a29f245abc",
+  "activeVersionId": "55d35c75-6cbd-478b-b2a8-98a29f245abc",
+  "versionCounter": 70,
+  "triggerCount": 1,
+  "shared": [
+    {
+      "updatedAt": "2025-12-04T18:17:12.975Z",
+      "createdAt": "2025-12-04T18:17:12.975Z",
+      "role": "workflow:owner",
+      "workflowId": "Og3lBFKpZApF1Gun",
+      "projectId": "TilHgTxHPA8tqHO1",
+      "project": {
+        "updatedAt": "2025-11-18T19:41:27.899Z",
+        "createdAt": "2025-11-07T20:39:42.351Z",
+        "id": "TilHgTxHPA8tqHO1",
+        "name": "Lina F <jordane.frechet@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "319eaa7a-83a0-4f1d-ba6e-595ef2af39b3"
+      }
+    }
+  ],
+  "tags": [],
+  "activeVersion": {
+    "updatedAt": "2026-02-18T18:12:26.281Z",
+    "createdAt": "2026-02-18T18:12:26.281Z",
+    "versionId": "55d35c75-6cbd-478b-b2a8-98a29f245abc",
+    "workflowId": "Og3lBFKpZApF1Gun",
+    "nodes": [
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "create-sheet",
+          "authentication": "headerAuth",
+          "responseMode": "responseNode",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2.1,
+        "position": [
+          -192,
+          -32
+        ],
+        "id": "c5d06f64-e27e-4c88-ab1e-ec9a8feb3639",
+        "name": "Webhook",
+        "webhookId": "8e806082-5594-400b-ac6b-d43d9c952381",
+        "credentials": {
+          "httpHeaderAuth": {
+            "id": "zw7qjmCFIsQxFnES",
+            "name": "Header Auth account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "mode": "runOnceForEachItem",
+          "jsCode": "// Ensure columns is an array of strings, even if passed as comma string\nconst sheetName = $json.body.sheetName;\nlet cols = $json.body.columns;\n\nif (typeof cols === 'string') {\n  cols = cols.split(',').map(c => c.trim()).filter(Boolean);\n}\n\nreturn {\n    json: {\n      sheetName,\n      columns: cols,\n    }\n  }\n;"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          64,
+          -32
+        ],
+        "id": "21add2d0-6394-4ab2-810e-5ed5712c8c7a",
+        "name": "Code in JavaScript"
+      },
+      {
+        "parameters": {
+          "operation": "create",
+          "documentId": {
+            "__rl": true,
+            "value": "1Rp9VlelC_A5kB7HqSM4zvLRNY0ekniNRXiLV8V3wEw0",
+            "mode": "list",
+            "cachedResultName": "Lina Mood Memory",
+            "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Rp9VlelC_A5kB7HqSM4zvLRNY0ekniNRXiLV8V3wEw0/edit?usp=drivesdk"
+          },
+          "title": "={{ $json.sheetName }}",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.googleSheets",
+        "typeVersion": 4.7,
+        "position": [
+          224,
+          -176
+        ],
+        "id": "477f7e27-c247-4c07-8c75-9e73c5e84db0",
+        "name": "Create sheet",
+        "alwaysOutputData": true,
+        "credentials": {
+          "googleSheetsOAuth2Api": {
+            "id": "KiIFBovsLWhz9ZoM",
+            "name": "Google Sheets account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "operation": "append",
+          "documentId": {
+            "__rl": true,
+            "value": "1Rp9VlelC_A5kB7HqSM4zvLRNY0ekniNRXiLV8V3wEw0",
+            "mode": "list",
+            "cachedResultName": "Lina Mood Memory",
+            "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Rp9VlelC_A5kB7HqSM4zvLRNY0ekniNRXiLV8V3wEw0/edit?usp=drivesdk"
+          },
+          "sheetName": {
+            "__rl": true,
+            "value": "={{ $('Merge').item.json.sheetName }}",
+            "mode": "name"
+          },
+          "columns": {
+            "mappingMode": "defineBelow",
+            "value": {},
+            "matchingColumns": [],
+            "schema": [
+              {
+                "id": "what",
+                "displayName": "what",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "is",
+                "displayName": "is",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "good",
+                "displayName": "good",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              }
+            ],
+            "attemptToConvertTypes": false,
+            "convertFieldsToString": false
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.googleSheets",
+        "typeVersion": 4.7,
+        "position": [
+          704,
+          -64
+        ],
+        "id": "b5899c8e-a353-4db2-8345-e715d56134c3",
+        "name": "Append row in sheet",
+        "credentials": {
+          "googleSheetsOAuth2Api": {
+            "id": "KiIFBovsLWhz9ZoM",
+            "name": "Google Sheets account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "respondWith": "allIncomingItems",
+          "options": {
+            "responseCode": 200
+          }
+        },
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.4,
+        "position": [
+          1040,
+          -240
+        ],
+        "id": "67467641-38fe-45b4-bf6a-a0d40ef54c12",
+        "name": "Respond to Webhook"
+      },
+      {
+        "parameters": {
+          "mode": "chooseBranch",
+          "useDataOfInput": 2
+        },
+        "type": "n8n-nodes-base.merge",
+        "typeVersion": 3.2,
+        "position": [
+          368,
+          -48
+        ],
+        "id": "3e330521-2fcc-4957-808f-e49e83ba176e",
+        "name": "Merge"
+      },
+      {
+        "parameters": {
+          "mode": "runOnceForEachItem",
+          "jsCode": "// Loop over input items and add a new field called 'myNewField' to the JSON of each one\nconst items = {}\n$json.columns.forEach((col) => {\n  items[col] = null;\n})\n\nreturn items;"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          512,
+          32
+        ],
+        "id": "218552f9-c67f-4a6a-bd55-d3c05f04ea75",
+        "name": "Code in JavaScript1"
+      },
+      {
+        "parameters": {
+          "mode": "chooseBranch"
+        },
+        "type": "n8n-nodes-base.merge",
+        "typeVersion": 3.2,
+        "position": [
+          688,
+          -240
+        ],
+        "id": "93f0f091-944e-4a0d-b895-2ca2487c2338",
+        "name": "Merge1"
+      },
+      {
+        "parameters": {
+          "mode": "runOnceForEachItem",
+          "jsCode": "// Add a new field called 'myNewField' to the JSON of the item\nconst url = `https://docs.google.com/spreadsheets/d/${$json.spreadsheetId}/edit?gid=${$json.sheetId}`\nreturn {url};"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          880,
+          -128
+        ],
+        "id": "a555465f-2ce5-4493-b79b-86445b7fc8ed",
+        "name": "Code in JavaScript2",
+        "alwaysOutputData": false
+      }
+    ],
+    "connections": {
+      "Webhook": {
+        "main": [
+          [
+            {
+              "node": "Code in JavaScript",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Code in JavaScript": {
+        "main": [
+          [
+            {
+              "node": "Create sheet",
+              "type": "main",
+              "index": 0
+            },
+            {
+              "node": "Merge",
+              "type": "main",
+              "index": 1
+            }
+          ]
+        ]
+      },
+      "Create sheet": {
+        "main": [
+          [
+            {
+              "node": "Merge",
+              "type": "main",
+              "index": 0
+            },
+            {
+              "node": "Merge1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Append row in sheet": {
+        "main": [
+          [
+            {
+              "node": "Merge1",
+              "type": "main",
+              "index": 1
+            }
+          ]
+        ]
+      },
+      "Merge": {
+        "main": [
+          [
+            {
+              "node": "Code in JavaScript1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Code in JavaScript1": {
+        "main": [
+          [
+            {
+              "node": "Append row in sheet",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Merge1": {
+        "main": [
+          [
+            {
+              "node": "Code in JavaScript2",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Code in JavaScript2": {
+        "main": [
+          [
+            {
+              "node": "Respond to Webhook",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "authors": "system migration",
+    "name": null,
+    "description": null,
+    "autosaved": false,
+    "workflowPublishHistory": [
+      {
+        "createdAt": "2025-12-04T20:54:09.000Z",
+        "id": 6,
+        "workflowId": "Og3lBFKpZApF1Gun",
+        "versionId": "55d35c75-6cbd-478b-b2a8-98a29f245abc",
+        "event": "activated",
+        "userId": null
+      }
+    ]
+  }
+}
