@@ -34,7 +34,7 @@ jobs:
         run: |
           echo "🔐 Setting up SSH connection..."
           mkdir -p ~/.ssh
-          echo "${{ secrets.VM_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          echo "${{ secrets.VMSSHPRIVATE_KEY_B64 }}" | base64 -d > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           
           # Add VM host to known_hosts
