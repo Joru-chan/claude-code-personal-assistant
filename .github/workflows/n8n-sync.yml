@@ -36,18 +36,18 @@ jobs:
           else
             echo "Workflow Name: ${{ inputs.workflow_name }}"
           fi
-          echo "N8N Base URL: ${{ secrets.N8NBASEURL }}"
+          echo "N8N Base URL: ${{ secrets.N8N_BASE_URL }}"
           echo "========================="
 
       - name: Validate secrets
         env:
           N8N_API_KEY: ${{ secrets.N8NAPIKEY }}
-          N8N_BASE_URL: ${{ secrets.N8NBASEURL }}
+          N8N_BASE_URL: ${{ secrets.N8N_BASE_URL }}
         run: |
           echo "🔐 Validating secrets..."
           
           if [ -z "$N8N_BASE_URL" ]; then
-            echo "❌ ERROR: N8NBASEURL secret is not set"
+            echo "❌ ERROR: N8N_BASE_URL secret is not set"
             exit 1
           fi
           
@@ -83,7 +83,7 @@ jobs:
             exit 1
           elif [ "$HTTP_STATUS" -eq 404 ]; then
             echo "❌ ERROR: API endpoint not found (404)"
-            echo "Please check that N8NBASEURL is correct"
+            echo "Please check that N8N_BASE_URL is correct"
             exit 1
           else
             echo "❌ ERROR: API request failed with status $HTTP_STATUS"
