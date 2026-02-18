@@ -317,15 +317,35 @@ jobs:
               JSON_NAME="$WORKFLOW_NAME_FROM_FILE"
             fi
             
+            # Strip extra properties that n8n API doesn't accept
+            # Only keep the properties that n8n API accepts
+            echo "  🧹 Cleaning workflow data..."
+            cat "$workflow_file" | jq '{
+              name: .name,
+              nodes: .nodes,
+              connections: .connections,
+              settings: .settings,
+              staticData: .staticData,
+              active: .active,
+              tags: .tags
+            }' > workflow_clean.json
+            
+            if [ "$DEBUG_MODE" == "true" ]; then
+              echo "  Original workflow properties:"
+              cat "$workflow_file" | jq 'keys' 2>/dev/null
+              echo "  Cleaned workflow properties:"
+              cat workflow_clean.json | jq 'keys' 2>/dev/null
+            fi
+            
             # Check if workflow exists in n8n
             EXISTING_ID=$(cat workflows_list.json | jq -r ".data[] | select(.name == \"$JSON_NAME\") | .id" 2>/dev/null)
             
             if [ "$EXISTING_ID" != "null" ] && [ -n "$EXISTING_ID" ]; then
               echo "  🔄 Updating existing workflow (ID: $EXISTING_ID)"
-              HTTP_CODE=$(curl -s -w '%{http_code}' -o response.json -X PUT -H "accept: application/json" -H "$AUTH_HEADER" -H "Content-Type: application/json" -d @"$workflow_file" "$BASE_URL/api/v1/workflows/$EXISTING_ID")
+              HTTP_CODE=$(curl -s -w '%{http_code}' -o response.json -X PUT -H "accept: application/json" -H "$AUTH_HEADER" -H "Content-Type: application/json" -d @workflow_clean.json "$BASE_URL/api/v1/workflows/$EXISTING_ID")
             else
               echo "  ➕ Creating new workflow"
-              HTTP_CODE=$(curl -s -w '%{http_code}' -o response.json -X POST -H "accept: application/json" -H "$AUTH_HEADER" -H "Content-Type: application/json" -d @"$workflow_file" "$BASE_URL/api/v1/workflows")
+              HTTP_CODE=$(curl -s -w '%{http_code}' -o response.json -X POST -H "accept: application/json" -H "$AUTH_HEADER" -H "Content-Type: application/json" -d @workflow_clean.json "$BASE_URL/api/v1/workflows")
             fi
             
             if [ "$HTTP_CODE" == "200" ] || [ "$HTTP_CODE" == "201" ]; then
@@ -333,14 +353,16 @@ jobs:
               SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
             else
               echo "  ❌ Failed (HTTP $HTTP_CODE)"
+              echo "  Response:"
+              cat response.json
               if [ "$DEBUG_MODE" == "true" ]; then
-                echo "Response:"
-                cat response.json
+                echo "  Cleaned payload that was sent:"
+                cat workflow_clean.json | jq '.'
               fi
             fi
           done
           
-          rm -f workflows_list.json response.json
+          rm -f workflows_list.json response.json workflow_clean.json
           echo "✅ Successfully pushed $SUCCESS_COUNT/$TOTAL_COUNT workflows"
 
       - name: Commit changes
