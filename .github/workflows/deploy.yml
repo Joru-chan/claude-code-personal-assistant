@@ -24,6 +24,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Debug SSH Key
+        run: |
+          echo "Key starts with: $(echo "${{ secrets.VMSSHPRIVATE_KEY }}" | head -c 20)"
+          echo "VM_HOST: ${{ secrets.VM_HOST }}"
+          echo "VM_USER: ${{ secrets.VM_USER }}"
+
       - name: Setup SSH
         run: |
           echo "🔐 Setting up SSH connection..."
