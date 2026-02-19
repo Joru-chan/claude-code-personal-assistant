@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2025-11-21T10:46:55.000Z",
+  "updatedAt": "2026-02-19T14:47:40.400Z",
   "createdAt": "2025-11-21T10:44:21.283Z",
   "id": "ha51roi4BhSEwe84",
   "name": "Serendipity Events Logger",
@@ -181,7 +181,9 @@
     }
   },
   "settings": {
-    "executionOrder": "v1"
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
   },
   "staticData": null,
   "meta": {
@@ -190,7 +192,7 @@
   "pinData": {},
   "versionId": "adba96ba-b871-4704-83a4-75e6cd1b4a8f",
   "activeVersionId": "adba96ba-b871-4704-83a4-75e6cd1b4a8f",
-  "versionCounter": 7,
+  "versionCounter": 12,
   "triggerCount": 1,
   "shared": [
     {
@@ -403,6 +405,38 @@
         "versionId": "adba96ba-b871-4704-83a4-75e6cd1b4a8f",
         "event": "activated",
         "userId": null
+      },
+      {
+        "createdAt": "2026-02-19T14:47:40.621Z",
+        "id": 71,
+        "workflowId": "ha51roi4BhSEwe84",
+        "versionId": "adba96ba-b871-4704-83a4-75e6cd1b4a8f",
+        "event": "activated",
+        "userId": "319eaa7a-83a0-4f1d-ba6e-595ef2af39b3"
+      },
+      {
+        "createdAt": "2026-02-19T14:47:41.093Z",
+        "id": 73,
+        "workflowId": "ha51roi4BhSEwe84",
+        "versionId": "adba96ba-b871-4704-83a4-75e6cd1b4a8f",
+        "event": "activated",
+        "userId": "319eaa7a-83a0-4f1d-ba6e-595ef2af39b3"
+      },
+      {
+        "createdAt": "2026-02-19T14:47:40.581Z",
+        "id": 70,
+        "workflowId": "ha51roi4BhSEwe84",
+        "versionId": "adba96ba-b871-4704-83a4-75e6cd1b4a8f",
+        "event": "deactivated",
+        "userId": "319eaa7a-83a0-4f1d-ba6e-595ef2af39b3"
+      },
+      {
+        "createdAt": "2026-02-19T14:47:41.045Z",
+        "id": 72,
+        "workflowId": "ha51roi4BhSEwe84",
+        "versionId": "adba96ba-b871-4704-83a4-75e6cd1b4a8f",
+        "event": "deactivated",
+        "userId": "319eaa7a-83a0-4f1d-ba6e-595ef2af39b3"
       }
     ]
   }

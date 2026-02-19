@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2025-11-26T19:20:58.000Z",
+  "updatedAt": "2026-02-19T14:47:35.363Z",
   "createdAt": "2025-11-18T21:25:31.230Z",
   "id": "VlWUUM2k0in7cJwN",
   "name": "Mood Memory - Create",
@@ -381,7 +381,9 @@
     }
   },
   "settings": {
-    "executionOrder": "v1"
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
   },
   "staticData": null,
   "meta": {
@@ -390,7 +392,7 @@
   "pinData": {},
   "versionId": "27c81158-4ffc-45d8-94b7-046d63961346",
   "activeVersionId": "27c81158-4ffc-45d8-94b7-046d63961346",
-  "versionCounter": 58,
+  "versionCounter": 63,
   "triggerCount": 1,
   "shared": [
     {
@@ -803,6 +805,38 @@
         "versionId": "27c81158-4ffc-45d8-94b7-046d63961346",
         "event": "activated",
         "userId": null
+      },
+      {
+        "createdAt": "2026-02-19T14:47:35.667Z",
+        "id": 55,
+        "workflowId": "VlWUUM2k0in7cJwN",
+        "versionId": "27c81158-4ffc-45d8-94b7-046d63961346",
+        "event": "activated",
+        "userId": "319eaa7a-83a0-4f1d-ba6e-595ef2af39b3"
+      },
+      {
+        "createdAt": "2026-02-19T14:47:36.263Z",
+        "id": 57,
+        "workflowId": "VlWUUM2k0in7cJwN",
+        "versionId": "27c81158-4ffc-45d8-94b7-046d63961346",
+        "event": "activated",
+        "userId": "319eaa7a-83a0-4f1d-ba6e-595ef2af39b3"
+      },
+      {
+        "createdAt": "2026-02-19T14:47:35.564Z",
+        "id": 54,
+        "workflowId": "VlWUUM2k0in7cJwN",
+        "versionId": "27c81158-4ffc-45d8-94b7-046d63961346",
+        "event": "deactivated",
+        "userId": "319eaa7a-83a0-4f1d-ba6e-595ef2af39b3"
+      },
+      {
+        "createdAt": "2026-02-19T14:47:36.181Z",
+        "id": 56,
+        "workflowId": "VlWUUM2k0in7cJwN",
+        "versionId": "27c81158-4ffc-45d8-94b7-046d63961346",
+        "event": "deactivated",
+        "userId": "319eaa7a-83a0-4f1d-ba6e-595ef2af39b3"
       }
     ]
   }

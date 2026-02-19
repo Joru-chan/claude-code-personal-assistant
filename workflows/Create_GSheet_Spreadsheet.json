@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2025-12-04T20:54:09.000Z",
+  "updatedAt": "2026-02-19T14:47:32.866Z",
   "createdAt": "2025-12-04T18:17:12.961Z",
   "id": "Og3lBFKpZApF1Gun",
   "name": "Create GSheet Spreadsheet",
@@ -331,7 +331,7 @@
   "pinData": {},
   "versionId": "55d35c75-6cbd-478b-b2a8-98a29f245abc",
   "activeVersionId": "55d35c75-6cbd-478b-b2a8-98a29f245abc",
-  "versionCounter": 70,
+  "versionCounter": 75,
   "triggerCount": 1,
   "shared": [
     {
@@ -682,6 +682,38 @@
         "versionId": "55d35c75-6cbd-478b-b2a8-98a29f245abc",
         "event": "activated",
         "userId": null
+      },
+      {
+        "createdAt": "2026-02-19T14:47:33.083Z",
+        "id": 47,
+        "workflowId": "Og3lBFKpZApF1Gun",
+        "versionId": "55d35c75-6cbd-478b-b2a8-98a29f245abc",
+        "event": "activated",
+        "userId": "319eaa7a-83a0-4f1d-ba6e-595ef2af39b3"
+      },
+      {
+        "createdAt": "2026-02-19T14:47:33.595Z",
+        "id": 49,
+        "workflowId": "Og3lBFKpZApF1Gun",
+        "versionId": "55d35c75-6cbd-478b-b2a8-98a29f245abc",
+        "event": "activated",
+        "userId": "319eaa7a-83a0-4f1d-ba6e-595ef2af39b3"
+      },
+      {
+        "createdAt": "2026-02-19T14:47:32.991Z",
+        "id": 46,
+        "workflowId": "Og3lBFKpZApF1Gun",
+        "versionId": "55d35c75-6cbd-478b-b2a8-98a29f245abc",
+        "event": "deactivated",
+        "userId": "319eaa7a-83a0-4f1d-ba6e-595ef2af39b3"
+      },
+      {
+        "createdAt": "2026-02-19T14:47:33.496Z",
+        "id": 48,
+        "workflowId": "Og3lBFKpZApF1Gun",
+        "versionId": "55d35c75-6cbd-478b-b2a8-98a29f245abc",
+        "event": "deactivated",
+        "userId": "319eaa7a-83a0-4f1d-ba6e-595ef2af39b3"
       }
     ]
   }

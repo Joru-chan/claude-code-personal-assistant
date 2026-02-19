@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2025-11-18T20:00:15.000Z",
+  "updatedAt": "2026-02-19T14:47:38.020Z",
   "createdAt": "2025-11-18T19:51:23.849Z",
   "id": "QBhoM6OaShB7BH6G",
   "name": "My workflow",
@@ -35,14 +35,16 @@
   ],
   "connections": {},
   "settings": {
-    "executionOrder": "v1"
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
   },
   "staticData": null,
   "meta": null,
   "pinData": {},
   "versionId": "ae78ab79-790f-4108-9590-ef844b1168f4",
   "activeVersionId": "ae78ab79-790f-4108-9590-ef844b1168f4",
-  "versionCounter": 6,
+  "versionCounter": 11,
   "triggerCount": 1,
   "shared": [
     {
@@ -109,6 +111,38 @@
         "versionId": "ae78ab79-790f-4108-9590-ef844b1168f4",
         "event": "activated",
         "userId": null
+      },
+      {
+        "createdAt": "2026-02-19T14:47:38.159Z",
+        "id": 63,
+        "workflowId": "QBhoM6OaShB7BH6G",
+        "versionId": "ae78ab79-790f-4108-9590-ef844b1168f4",
+        "event": "activated",
+        "userId": "319eaa7a-83a0-4f1d-ba6e-595ef2af39b3"
+      },
+      {
+        "createdAt": "2026-02-19T14:47:38.615Z",
+        "id": 65,
+        "workflowId": "QBhoM6OaShB7BH6G",
+        "versionId": "ae78ab79-790f-4108-9590-ef844b1168f4",
+        "event": "activated",
+        "userId": "319eaa7a-83a0-4f1d-ba6e-595ef2af39b3"
+      },
+      {
+        "createdAt": "2026-02-19T14:47:38.068Z",
+        "id": 62,
+        "workflowId": "QBhoM6OaShB7BH6G",
+        "versionId": "ae78ab79-790f-4108-9590-ef844b1168f4",
+        "event": "deactivated",
+        "userId": "319eaa7a-83a0-4f1d-ba6e-595ef2af39b3"
+      },
+      {
+        "createdAt": "2026-02-19T14:47:38.566Z",
+        "id": 64,
+        "workflowId": "QBhoM6OaShB7BH6G",
+        "versionId": "ae78ab79-790f-4108-9590-ef844b1168f4",
+        "event": "deactivated",
+        "userId": "319eaa7a-83a0-4f1d-ba6e-595ef2af39b3"
       }
     ]
   }

@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2025-11-20T17:15:28.000Z",
+  "updatedAt": "2026-02-19T14:47:36.793Z",
   "createdAt": "2025-11-19T15:18:14.940Z",
   "id": "81nVt8F9PwVAd5I9",
   "name": "Mood Memory - Update",
@@ -198,7 +198,9 @@
     }
   },
   "settings": {
-    "executionOrder": "v1"
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
   },
   "staticData": null,
   "meta": {
@@ -207,7 +209,7 @@
   "pinData": {},
   "versionId": "50da88c5-9410-4446-b15e-54b50970beb3",
   "activeVersionId": "50da88c5-9410-4446-b15e-54b50970beb3",
-  "versionCounter": 20,
+  "versionCounter": 25,
   "triggerCount": 1,
   "shared": [
     {
@@ -437,6 +439,38 @@
         "versionId": "50da88c5-9410-4446-b15e-54b50970beb3",
         "event": "activated",
         "userId": null
+      },
+      {
+        "createdAt": "2026-02-19T14:47:37.012Z",
+        "id": 59,
+        "workflowId": "81nVt8F9PwVAd5I9",
+        "versionId": "50da88c5-9410-4446-b15e-54b50970beb3",
+        "event": "activated",
+        "userId": "319eaa7a-83a0-4f1d-ba6e-595ef2af39b3"
+      },
+      {
+        "createdAt": "2026-02-19T14:47:37.503Z",
+        "id": 61,
+        "workflowId": "81nVt8F9PwVAd5I9",
+        "versionId": "50da88c5-9410-4446-b15e-54b50970beb3",
+        "event": "activated",
+        "userId": "319eaa7a-83a0-4f1d-ba6e-595ef2af39b3"
+      },
+      {
+        "createdAt": "2026-02-19T14:47:36.960Z",
+        "id": 58,
+        "workflowId": "81nVt8F9PwVAd5I9",
+        "versionId": "50da88c5-9410-4446-b15e-54b50970beb3",
+        "event": "deactivated",
+        "userId": "319eaa7a-83a0-4f1d-ba6e-595ef2af39b3"
+      },
+      {
+        "createdAt": "2026-02-19T14:47:37.476Z",
+        "id": 60,
+        "workflowId": "81nVt8F9PwVAd5I9",
+        "versionId": "50da88c5-9410-4446-b15e-54b50970beb3",
+        "event": "deactivated",
+        "userId": "319eaa7a-83a0-4f1d-ba6e-595ef2af39b3"
       }
     ]
   }

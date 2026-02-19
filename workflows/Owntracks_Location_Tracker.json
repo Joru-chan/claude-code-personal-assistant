@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-02-19T13:35:28.201Z",
+  "updatedAt": "2026-02-19T15:52:26.438Z",
   "createdAt": "2026-02-18T19:31:58.189Z",
   "id": "lOVfBNjOpIc3hZxZ",
   "name": "Owntracks Location Tracker",
@@ -27,7 +27,6 @@
     },
     {
       "parameters": {
-        "mode": "runOnceForEachItem",
         "jsCode": "// Owntracks Location Data Filter and Transformer\n// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nconst MIN_ACCURACY = 50;  // meters\nconst MIN_DISTANCE = 20;  // meters\n\n// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n// COMPREHENSIVE DATA EXTRACTION WITH DEBUGGING\n// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nconsole.log('🔍 RAW INPUT STRUCTURE:');\nconsole.log('$input:', JSON.stringify($input, null, 2));\nconsole.log('$input.all():', JSON.stringify($input.all(), null, 2));\n\n// Try multiple extraction methods\nlet item = null;\nlet extractionMethod = 'unknown';\n\n// Method 1: Direct json access\nif ($input.item && $input.item.json) {\n  item = $input.item.json;\n  extractionMethod = 'direct-json';\n  console.log('✓ Extracted via direct JSON access');\n}\n\n// Method 2: First item from all()\nif (!item && $input.all().length > 0) {\n  item = $input.all()[0].json;\n  extractionMethod = 'first-item-json';\n  console.log('✓ Extracted via first item JSON');\n}\n\n// Method 3: Check if data is in body\nif (!item && $input.item && $input.item.json && $input.item.json.body) {\n  item = $input.item.json.body;\n  extractionMethod = 'body-nested';\n  console.log('✓ Extracted via body nesting');\n}\n\n// Method 4: Check if data is in webhook payload\nif (!item && $input.item && $input.item.json && $input.item.json.payload) {\n  item = $input.item.json.payload;\n  extractionMethod = 'payload-nested';\n  console.log('✓ Extracted via payload nesting');\n}\n\n// Method 5: Direct access to raw data\nif (!item) {\n  item = $input.item || {};\n  extractionMethod = 'raw-item';\n  console.log('✓ Using raw item data');\n}\n\nconsole.log('📍 Extracted data via method:', extractionMethod);\nconsole.log('📍 Extracted item data:', JSON.stringify(item, null, 2));\n\n// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n// FLEXIBLE COORDINATE EXTRACTION\n// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nfunction extractCoordinates(data) {\n  const possibilities = [\n    // Standard Owntracks format\n    { lat: data.lat, lon: data.lon },\n    { lat: data.latitude, lon: data.longitude },\n    \n    // Nested in location object\n    { lat: data.location?.lat, lon: data.location?.lon },\n    { lat: data.location?.latitude, lon: data.location?.longitude },\n    \n    // Query parameters (if webhook passes as query)\n    { lat: data.query?.lat, lon: data.query?.lon },\n    { lat: data.query?.latitude, lon: data.query?.longitude },\n    \n    // Body parameters\n    { lat: data.body?.lat, lon: data.body?.lon },\n    { lat: data.body?.latitude, lon: data.body?.longitude },\n    \n    // Headers (unlikely but possible)\n    { lat: data.headers?.lat, lon: data.headers?.lon },\n    { lat: data.headers?.latitude, lon: data.headers?.longitude },\n    \n    // Params\n    { lat: data.params?.lat, lon: data.params?.lon },\n    { lat: data.params?.latitude, lon: data.params?.longitude },\n  ];\n  \n  for (let i = 0; i < possibilities.length; i++) {\n    const coords = possibilities[i];\n    if (coords.lat !== undefined && coords.lon !== undefined && \n        coords.lat !== null && coords.lon !== null &&\n        !isNaN(parseFloat(coords.lat)) && !isNaN(parseFloat(coords.lon))) {\n      console.log(`✓ Found coordinates via method ${i + 1}: lat=${coords.lat}, lon=${coords.lon}`);\n      return {\n        latitude: parseFloat(coords.lat),\n        longitude: parseFloat(coords.lon)\n      };\n    }\n  }\n  \n  console.log('❌ No valid coordinates found in any extraction method');\n  return { latitude: null, longitude: null };\n}\n\nconst coordinates = extractCoordinates(item);\n\n// Extract other Owntracks data with fallbacks\nconst data = {\n  type: item._type || item.type || 'location',\n  latitude: coordinates.latitude,\n  longitude: coordinates.longitude,\n  accuracy: parseFloat(item.acc || item.accuracy) || null,\n  timestamp: parseInt(item.tst || item.timestamp) || null,\n  altitude: parseFloat(item.alt || item.altitude) || null,\n  velocity: parseFloat(item.vel || item.velocity) || null,\n  battery: parseInt(item.batt || item.battery) || null,\n  tracker_id: item.tid || item.tracker_id || item.trackerId || null,\n  trigger: item.t || item.trigger || null\n};\n\nconsole.log('🎯 Processed data:', JSON.stringify(data, null, 2));\n\n// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n// VALIDATION\n// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nconst validationErrors = [];\n\nif (data.latitude === null || data.longitude === null) {\n  validationErrors.push(`Missing latitude or longitude - lat: ${data.latitude}, lon: ${data.longitude}`);\n  console.log('❌ Available keys in item:', Object.keys(item));\n  console.log('❌ Item structure analysis:');\n  for (const key in item) {\n    console.log(`  ${key}: ${typeof item[key]} = ${JSON.stringify(item[key])}`);\n  }\n}\n\nif (data.latitude !== null && (data.latitude < -90 || data.latitude > 90)) {\n  validationErrors.push('Invalid latitude: ' + data.latitude);\n}\n\nif (data.longitude !== null && (data.longitude < -180 || data.longitude > 180)) {\n  validationErrors.push('Invalid longitude: ' + data.longitude);\n}\n\nif (validationErrors.length > 0) {\n  console.error('❌ Validation errors:', validationErrors);\n  return {\n    json: {\n      error: 'Validation failed',\n      details: validationErrors,\n      extraction_method: extractionMethod,\n      available_keys: Object.keys(item),\n      raw_data: item,\n      skip: true\n    }\n  };\n}\n\n// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n// FILTERING LOGIC\n// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nconst shouldSkip = [];\n\n// Filter 1: GPS Accuracy\nif (data.accuracy && data.accuracy > MIN_ACCURACY) {\n  shouldSkip.push(`Low accuracy: ${data.accuracy}m > ${MIN_ACCURACY}m`);\n}\n\n// Filter 2: Ignore certain trigger types if needed\nconst ignoredTriggers = [];  // e.g., ['p'] to ignore pings\n\nif (data.trigger && ignoredTriggers.includes(data.trigger)) {\n  shouldSkip.push(`Ignored trigger type: ${data.trigger}`);\n}\n\nif (shouldSkip.length > 0) {\n  console.log('⏭️  Skipping location update:', shouldSkip);\n  return {\n    json: {\n      skip: true,\n      reason: shouldSkip,\n      data: data\n    }\n  };\n}\n\n// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n// TRANSFORM FOR POKE\n// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n// Convert timestamp to ISO format\nconst timestamp = data.timestamp\n  ? new Date(data.timestamp * 1000).toISOString()\n  : new Date().toISOString();\n\n// Format data for Poke API\nconst pokePayload = {\n  type: 'location_update',\n  source: 'owntracks',\n  timestamp: timestamp,\n  location: {\n    latitude: data.latitude,\n    longitude: data.longitude,\n    accuracy: data.accuracy,\n    altitude: data.altitude,\n    velocity: data.velocity\n  },\n  device: {\n    tracker_id: data.tracker_id,\n    battery: data.battery,\n    trigger: data.trigger\n  },\n  metadata: {\n    raw_timestamp: data.timestamp,\n    processed_at: new Date().toISOString(),\n    extraction_method: extractionMethod\n  }\n};\n\nconsole.log('✅ Location update passed filters');\nconsole.log('📤 Sending to Poke:', JSON.stringify(pokePayload, null, 2));\n\nreturn {\n  json: {\n    skip: false,\n    source: 'owntracks',\n    type: data.type,\n    coordinates: {\n      latitude: data.latitude,\n      longitude: data.longitude\n    },\n    device: {\n      tracker_id: data.tracker_id,\n      battery: data.battery\n    },\n    extraction_method: extractionMethod,\n    poke_payload: pokePayload,\n    original_data: data\n  }\n};"
       },
       "id": "filter-location",
@@ -60,7 +59,6 @@
     },
     {
       "parameters": {
-        "mode": "runOnceForEachItem",
         "jsCode": "// Format for Poke Webhook\nconst item = $input.first();\ntry {\n  // Extract the data we need\n  const locationData = {\n    source: item.json.source,\n    type: item.json.type,\n    coordinates: item.json.coordinates,\n    device: item.json.device\n  };\n  \n  // Convert to the format Poke expects\n  return [{\n    json: {\n      message: JSON.stringify(locationData)\n    }\n  }];\n} catch (error) {\n  console.error('Error formatting for Poke:', error);\n  return [{\n    json: {\n      message: JSON.stringify({\n        error: error.message,\n        source: \"owntracks\"\n      })\n    }\n  }];\n}"
       },
       "id": "format-poke-webhook",
@@ -79,9 +77,8 @@
         "authentication": "genericCredentialType",
         "genericAuthType": "httpBearerAuth",
         "sendBody": true,
-        "bodyParameters": {
-          "parameters": []
-        },
+        "contentType": "raw",
+        "body": "={{ JSON.stringify($json.message) }}",
         "options": {
           "response": {
             "response": {
@@ -227,9 +224,9 @@
   "staticData": null,
   "meta": null,
   "pinData": {},
-  "versionId": "873486d2-eaa8-43c7-884d-f2320841a354",
-  "activeVersionId": "873486d2-eaa8-43c7-884d-f2320841a354",
-  "versionCounter": 72,
+  "versionId": "42147139-4e29-4cae-8bce-b2895c70dc69",
+  "activeVersionId": "42147139-4e29-4cae-8bce-b2895c70dc69",
+  "versionCounter": 156,
   "triggerCount": 1,
   "shared": [
     {
@@ -252,9 +249,9 @@
   ],
   "tags": [],
   "activeVersion": {
-    "updatedAt": "2026-02-19T13:35:42.000Z",
-    "createdAt": "2026-02-19T13:35:28.203Z",
-    "versionId": "873486d2-eaa8-43c7-884d-f2320841a354",
+    "updatedAt": "2026-02-19T15:52:21.000Z",
+    "createdAt": "2026-02-19T15:52:00.811Z",
+    "versionId": "42147139-4e29-4cae-8bce-b2895c70dc69",
     "workflowId": "lOVfBNjOpIc3hZxZ",
     "nodes": [
       {
@@ -277,7 +274,6 @@
       },
       {
         "parameters": {
-          "mode": "runOnceForEachItem",
           "jsCode": "// Owntracks Location Data Filter and Transformer\n// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nconst MIN_ACCURACY = 50;  // meters\nconst MIN_DISTANCE = 20;  // meters\n\n// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n// COMPREHENSIVE DATA EXTRACTION WITH DEBUGGING\n// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nconsole.log('🔍 RAW INPUT STRUCTURE:');\nconsole.log('$input:', JSON.stringify($input, null, 2));\nconsole.log('$input.all():', JSON.stringify($input.all(), null, 2));\n\n// Try multiple extraction methods\nlet item = null;\nlet extractionMethod = 'unknown';\n\n// Method 1: Direct json access\nif ($input.item && $input.item.json) {\n  item = $input.item.json;\n  extractionMethod = 'direct-json';\n  console.log('✓ Extracted via direct JSON access');\n}\n\n// Method 2: First item from all()\nif (!item && $input.all().length > 0) {\n  item = $input.all()[0].json;\n  extractionMethod = 'first-item-json';\n  console.log('✓ Extracted via first item JSON');\n}\n\n// Method 3: Check if data is in body\nif (!item && $input.item && $input.item.json && $input.item.json.body) {\n  item = $input.item.json.body;\n  extractionMethod = 'body-nested';\n  console.log('✓ Extracted via body nesting');\n}\n\n// Method 4: Check if data is in webhook payload\nif (!item && $input.item && $input.item.json && $input.item.json.payload) {\n  item = $input.item.json.payload;\n  extractionMethod = 'payload-nested';\n  console.log('✓ Extracted via payload nesting');\n}\n\n// Method 5: Direct access to raw data\nif (!item) {\n  item = $input.item || {};\n  extractionMethod = 'raw-item';\n  console.log('✓ Using raw item data');\n}\n\nconsole.log('📍 Extracted data via method:', extractionMethod);\nconsole.log('📍 Extracted item data:', JSON.stringify(item, null, 2));\n\n// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n// FLEXIBLE COORDINATE EXTRACTION\n// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nfunction extractCoordinates(data) {\n  const possibilities = [\n    // Standard Owntracks format\n    { lat: data.lat, lon: data.lon },\n    { lat: data.latitude, lon: data.longitude },\n    \n    // Nested in location object\n    { lat: data.location?.lat, lon: data.location?.lon },\n    { lat: data.location?.latitude, lon: data.location?.longitude },\n    \n    // Query parameters (if webhook passes as query)\n    { lat: data.query?.lat, lon: data.query?.lon },\n    { lat: data.query?.latitude, lon: data.query?.longitude },\n    \n    // Body parameters\n    { lat: data.body?.lat, lon: data.body?.lon },\n    { lat: data.body?.latitude, lon: data.body?.longitude },\n    \n    // Headers (unlikely but possible)\n    { lat: data.headers?.lat, lon: data.headers?.lon },\n    { lat: data.headers?.latitude, lon: data.headers?.longitude },\n    \n    // Params\n    { lat: data.params?.lat, lon: data.params?.lon },\n    { lat: data.params?.latitude, lon: data.params?.longitude },\n  ];\n  \n  for (let i = 0; i < possibilities.length; i++) {\n    const coords = possibilities[i];\n    if (coords.lat !== undefined && coords.lon !== undefined && \n        coords.lat !== null && coords.lon !== null &&\n        !isNaN(parseFloat(coords.lat)) && !isNaN(parseFloat(coords.lon))) {\n      console.log(`✓ Found coordinates via method ${i + 1}: lat=${coords.lat}, lon=${coords.lon}`);\n      return {\n        latitude: parseFloat(coords.lat),\n        longitude: parseFloat(coords.lon)\n      };\n    }\n  }\n  \n  console.log('❌ No valid coordinates found in any extraction method');\n  return { latitude: null, longitude: null };\n}\n\nconst coordinates = extractCoordinates(item);\n\n// Extract other Owntracks data with fallbacks\nconst data = {\n  type: item._type || item.type || 'location',\n  latitude: coordinates.latitude,\n  longitude: coordinates.longitude,\n  accuracy: parseFloat(item.acc || item.accuracy) || null,\n  timestamp: parseInt(item.tst || item.timestamp) || null,\n  altitude: parseFloat(item.alt || item.altitude) || null,\n  velocity: parseFloat(item.vel || item.velocity) || null,\n  battery: parseInt(item.batt || item.battery) || null,\n  tracker_id: item.tid || item.tracker_id || item.trackerId || null,\n  trigger: item.t || item.trigger || null\n};\n\nconsole.log('🎯 Processed data:', JSON.stringify(data, null, 2));\n\n// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n// VALIDATION\n// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nconst validationErrors = [];\n\nif (data.latitude === null || data.longitude === null) {\n  validationErrors.push(`Missing latitude or longitude - lat: ${data.latitude}, lon: ${data.longitude}`);\n  console.log('❌ Available keys in item:', Object.keys(item));\n  console.log('❌ Item structure analysis:');\n  for (const key in item) {\n    console.log(`  ${key}: ${typeof item[key]} = ${JSON.stringify(item[key])}`);\n  }\n}\n\nif (data.latitude !== null && (data.latitude < -90 || data.latitude > 90)) {\n  validationErrors.push('Invalid latitude: ' + data.latitude);\n}\n\nif (data.longitude !== null && (data.longitude < -180 || data.longitude > 180)) {\n  validationErrors.push('Invalid longitude: ' + data.longitude);\n}\n\nif (validationErrors.length > 0) {\n  console.error('❌ Validation errors:', validationErrors);\n  return {\n    json: {\n      error: 'Validation failed',\n      details: validationErrors,\n      extraction_method: extractionMethod,\n      available_keys: Object.keys(item),\n      raw_data: item,\n      skip: true\n    }\n  };\n}\n\n// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n// FILTERING LOGIC\n// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nconst shouldSkip = [];\n\n// Filter 1: GPS Accuracy\nif (data.accuracy && data.accuracy > MIN_ACCURACY) {\n  shouldSkip.push(`Low accuracy: ${data.accuracy}m > ${MIN_ACCURACY}m`);\n}\n\n// Filter 2: Ignore certain trigger types if needed\nconst ignoredTriggers = [];  // e.g., ['p'] to ignore pings\n\nif (data.trigger && ignoredTriggers.includes(data.trigger)) {\n  shouldSkip.push(`Ignored trigger type: ${data.trigger}`);\n}\n\nif (shouldSkip.length > 0) {\n  console.log('⏭️  Skipping location update:', shouldSkip);\n  return {\n    json: {\n      skip: true,\n      reason: shouldSkip,\n      data: data\n    }\n  };\n}\n\n// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n// TRANSFORM FOR POKE\n// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n// Convert timestamp to ISO format\nconst timestamp = data.timestamp\n  ? new Date(data.timestamp * 1000).toISOString()\n  : new Date().toISOString();\n\n// Format data for Poke API\nconst pokePayload = {\n  type: 'location_update',\n  source: 'owntracks',\n  timestamp: timestamp,\n  location: {\n    latitude: data.latitude,\n    longitude: data.longitude,\n    accuracy: data.accuracy,\n    altitude: data.altitude,\n    velocity: data.velocity\n  },\n  device: {\n    tracker_id: data.tracker_id,\n    battery: data.battery,\n    trigger: data.trigger\n  },\n  metadata: {\n    raw_timestamp: data.timestamp,\n    processed_at: new Date().toISOString(),\n    extraction_method: extractionMethod\n  }\n};\n\nconsole.log('✅ Location update passed filters');\nconsole.log('📤 Sending to Poke:', JSON.stringify(pokePayload, null, 2));\n\nreturn {\n  json: {\n    skip: false,\n    source: 'owntracks',\n    type: data.type,\n    coordinates: {\n      latitude: data.latitude,\n      longitude: data.longitude\n    },\n    device: {\n      tracker_id: data.tracker_id,\n      battery: data.battery\n    },\n    extraction_method: extractionMethod,\n    poke_payload: pokePayload,\n    original_data: data\n  }\n};"
         },
         "id": "filter-location",
@@ -310,7 +306,6 @@
       },
       {
         "parameters": {
-          "mode": "runOnceForEachItem",
           "jsCode": "// Format for Poke Webhook\nconst item = $input.first();\ntry {\n  // Extract the data we need\n  const locationData = {\n    source: item.json.source,\n    type: item.json.type,\n    coordinates: item.json.coordinates,\n    device: item.json.device\n  };\n  \n  // Convert to the format Poke expects\n  return [{\n    json: {\n      message: JSON.stringify(locationData)\n    }\n  }];\n} catch (error) {\n  console.error('Error formatting for Poke:', error);\n  return [{\n    json: {\n      message: JSON.stringify({\n        error: error.message,\n        source: \"owntracks\"\n      })\n    }\n  }];\n}"
         },
         "id": "format-poke-webhook",
@@ -329,9 +324,8 @@
           "authentication": "genericCredentialType",
           "genericAuthType": "httpBearerAuth",
           "sendBody": true,
-          "bodyParameters": {
-            "parameters": []
-          },
+          "contentType": "raw",
+          "body": "={{ JSON.stringify($json.message) }}",
           "options": {
             "response": {
               "response": {
@@ -468,15 +462,15 @@
       }
     },
     "authors": "Lina F",
-    "name": "Version 873486d2",
+    "name": "Version 42147139",
     "description": "",
     "autosaved": true,
     "workflowPublishHistory": [
       {
-        "createdAt": "2026-02-19T13:35:42.879Z",
-        "id": 43,
+        "createdAt": "2026-02-19T15:52:21.864Z",
+        "id": 101,
         "workflowId": "lOVfBNjOpIc3hZxZ",
-        "versionId": "873486d2-eaa8-43c7-884d-f2320841a354",
+        "versionId": "42147139-4e29-4cae-8bce-b2895c70dc69",
         "event": "activated",
         "userId": "319eaa7a-83a0-4f1d-ba6e-595ef2af39b3"
       }
