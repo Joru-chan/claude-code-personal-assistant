@@ -413,8 +413,12 @@ jobs:
             
             echo "  📝 Workflow name: $JSON_NAME"
             
+            # IMPORTANT: Store the active state BEFORE cleaning the workflow data
+            ACTIVE_STATE=$(cat "$workflow_file" | jq -r '.active // false' 2>/dev/null)
+            echo "  🔄 Active state: $ACTIVE_STATE"
+            
             # Strip extra properties that n8n API doesn't accept
-            # Keep only the properties that n8n API accepts
+            # CRITICAL FIX: Remove 'active' from the cleaned data - it's read-only in the API
             echo "  🧹 Cleaning workflow data..."
             cat "$workflow_file" | jq '{
               name: .name,
@@ -422,7 +426,6 @@ jobs:
               connections: .connections,
               settings: .settings,
               staticData: .staticData,
-              active: .active,
               tags: .tags,
               description: .description
             } | del(..|nulls)' > workflow_clean.json
@@ -433,15 +436,18 @@ jobs:
               echo "  Cleaned workflow properties:"
               cat workflow_clean.json | jq 'keys' 2>/dev/null
               echo "  Cleaned workflow size: $(wc -c < workflow_clean.json) bytes"
+              echo "  Note: 'active' property removed (it's read-only in the API)"
             fi
             
             # Check if workflow exists in n8n (trim spaces for comparison)
             EXISTING_ID=$(cat workflows_list.json | jq -r ".data[] | select(.name | gsub(\"^\\\\s+|\\\\s+$\"; \"\") == \"$(echo $JSON_NAME | xargs)\") | .id" 2>/dev/null)
             
             OPERATION=""
+            WORKFLOW_ID=""
             if [ "$EXISTING_ID" != "null" ] && [ -n "$EXISTING_ID" ]; then
               echo "  🔄 Updating existing workflow (ID: $EXISTING_ID)"
               OPERATION="UPDATE"
+              WORKFLOW_ID="$EXISTING_ID"
               HTTP_CODE=$(curl -s -w '%{http_code}' -o response.json -X PUT \
                 -H "accept: application/json" \
                 -H "$AUTH_HEADER" \
@@ -457,19 +463,64 @@ jobs:
                 -H "Content-Type: application/json" \
                 -d @workflow_clean.json \
                 "$BASE_URL/api/v1/workflows")
+              
+              # Get the new workflow ID from the response
+              if [ "$HTTP_CODE" == "200" ] || [ "$HTTP_CODE" == "201" ]; then
+                WORKFLOW_ID=$(cat response.json | jq -r '.id' 2>/dev/null)
+              fi
             fi
             
             echo "  📡 API Response: HTTP $HTTP_CODE"
             
             if [ "$HTTP_CODE" == "200" ] || [ "$HTTP_CODE" == "201" ]; then
-              echo "  ✅ Success!"
-              SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
-              SUCCEEDED_WORKFLOWS+=("$WORKFLOW_NAME_FROM_FILE")
+              echo "  ✅ Workflow $OPERATION successful!"
               
               if [ "$DEBUG_MODE" == "true" ]; then
                 echo "  Response body:"
                 cat response.json | jq '.' 2>/dev/null || cat response.json
               fi
+              
+              # Handle activation/deactivation as a SEPARATE API call
+              if [ -n "$WORKFLOW_ID" ]; then
+                echo "  🔧 Handling workflow activation state..."
+                
+                if [ "$ACTIVE_STATE" == "true" ]; then
+                  echo "  ▶️  Activating workflow..."
+                  ACTIVATE_CODE=$(curl -s -w '%{http_code}' -o activate_response.json -X POST \
+                    -H "accept: application/json" \
+                    -H "$AUTH_HEADER" \
+                    "$BASE_URL/api/v1/workflows/$WORKFLOW_ID/activate")
+                  
+                  if [ "$ACTIVATE_CODE" == "200" ]; then
+                    echo "  ✅ Workflow activated successfully"
+                  else
+                    echo "  ⚠️  Failed to activate workflow (HTTP $ACTIVATE_CODE)"
+                    if [ "$DEBUG_MODE" == "true" ]; then
+                      cat activate_response.json | jq '.' 2>/dev/null || cat activate_response.json
+                    fi
+                  fi
+                else
+                  echo "  ⏸️  Deactivating workflow..."
+                  DEACTIVATE_CODE=$(curl -s -w '%{http_code}' -o deactivate_response.json -X POST \
+                    -H "accept: application/json" \
+                    -H "$AUTH_HEADER" \
+                    "$BASE_URL/api/v1/workflows/$WORKFLOW_ID/deactivate")
+                  
+                  if [ "$DEACTIVATE_CODE" == "200" ]; then
+                    echo "  ✅ Workflow deactivated successfully"
+                  else
+                    echo "  ⚠️  Failed to deactivate workflow (HTTP $DEACTIVATE_CODE)"
+                    if [ "$DEBUG_MODE" == "true" ]; then
+                      cat deactivate_response.json | jq '.' 2>/dev/null || cat deactivate_response.json
+                    fi
+                  fi
+                fi
+              else
+                echo "  ⚠️  Could not get workflow ID for activation handling"
+              fi
+              
+              SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
+              SUCCEEDED_WORKFLOWS+=("$WORKFLOW_NAME_FROM_FILE")
             else
               echo "  ❌ Failed with HTTP $HTTP_CODE"
               echo ""
@@ -507,7 +558,7 @@ jobs:
           done
           
           # Cleanup temporary files
-          rm -f workflows_list.json response.json workflow_clean.json
+          rm -f workflows_list.json response.json workflow_clean.json activate_response.json deactivate_response.json
           
           # Print summary
           echo ""
