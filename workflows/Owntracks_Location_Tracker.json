@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-02-19T16:49:46.474Z",
+  "updatedAt": "2026-02-19T17:03:36.457Z",
   "createdAt": "2026-02-18T19:31:58.189Z",
   "id": "lOVfBNjOpIc3hZxZ",
   "name": "Owntracks Location Tracker",
@@ -77,8 +77,14 @@
         "authentication": "genericCredentialType",
         "genericAuthType": "httpBearerAuth",
         "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ $json.message }}",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "message",
+              "value": "={{ JSON.stringify($json.message) }}"
+            }
+          ]
+        },
         "options": {
           "response": {
             "response": {
@@ -224,9 +230,9 @@
   "staticData": null,
   "meta": null,
   "pinData": {},
-  "versionId": "8490bf4b-d110-4234-916c-5a064c0def9f",
-  "activeVersionId": "8490bf4b-d110-4234-916c-5a064c0def9f",
-  "versionCounter": 166,
+  "versionId": "a4f05aa3-cd33-43bd-8212-ce77d4d2a239",
+  "activeVersionId": "a4f05aa3-cd33-43bd-8212-ce77d4d2a239",
+  "versionCounter": 180,
   "triggerCount": 1,
   "shared": [
     {
@@ -249,9 +255,9 @@
   ],
   "tags": [],
   "activeVersion": {
-    "updatedAt": "2026-02-19T16:46:13.042Z",
-    "createdAt": "2026-02-19T16:46:13.042Z",
-    "versionId": "8490bf4b-d110-4234-916c-5a064c0def9f",
+    "updatedAt": "2026-02-19T17:03:40.000Z",
+    "createdAt": "2026-02-19T17:03:36.459Z",
+    "versionId": "a4f05aa3-cd33-43bd-8212-ce77d4d2a239",
     "workflowId": "lOVfBNjOpIc3hZxZ",
     "nodes": [
       {
@@ -324,8 +330,14 @@
           "authentication": "genericCredentialType",
           "genericAuthType": "httpBearerAuth",
           "sendBody": true,
-          "specifyBody": "json",
-          "jsonBody": "={{ $json.message }}",
+          "bodyParameters": {
+            "parameters": [
+              {
+                "name": "message",
+                "value": "={{ JSON.stringify($json.message) }}"
+              }
+            ]
+          },
           "options": {
             "response": {
               "response": {
@@ -462,72 +474,16 @@
       }
     },
     "authors": "Lina F",
-    "name": null,
-    "description": null,
-    "autosaved": false,
+    "name": "Version a4f05aa3",
+    "description": "",
+    "autosaved": true,
     "workflowPublishHistory": [
       {
-        "createdAt": "2026-02-19T16:46:13.174Z",
-        "id": 103,
+        "createdAt": "2026-02-19T17:03:40.475Z",
+        "id": 115,
         "workflowId": "lOVfBNjOpIc3hZxZ",
-        "versionId": "8490bf4b-d110-4234-916c-5a064c0def9f",
+        "versionId": "a4f05aa3-cd33-43bd-8212-ce77d4d2a239",
         "event": "activated",
-        "userId": "319eaa7a-83a0-4f1d-ba6e-595ef2af39b3"
-      },
-      {
-        "createdAt": "2026-02-19T16:46:13.879Z",
-        "id": 105,
-        "workflowId": "lOVfBNjOpIc3hZxZ",
-        "versionId": "8490bf4b-d110-4234-916c-5a064c0def9f",
-        "event": "activated",
-        "userId": "319eaa7a-83a0-4f1d-ba6e-595ef2af39b3"
-      },
-      {
-        "createdAt": "2026-02-19T16:49:47.371Z",
-        "id": 107,
-        "workflowId": "lOVfBNjOpIc3hZxZ",
-        "versionId": "8490bf4b-d110-4234-916c-5a064c0def9f",
-        "event": "activated",
-        "userId": "319eaa7a-83a0-4f1d-ba6e-595ef2af39b3"
-      },
-      {
-        "createdAt": "2026-02-19T16:49:48.072Z",
-        "id": 109,
-        "workflowId": "lOVfBNjOpIc3hZxZ",
-        "versionId": "8490bf4b-d110-4234-916c-5a064c0def9f",
-        "event": "activated",
-        "userId": "319eaa7a-83a0-4f1d-ba6e-595ef2af39b3"
-      },
-      {
-        "createdAt": "2026-02-19T16:46:13.151Z",
-        "id": 102,
-        "workflowId": "lOVfBNjOpIc3hZxZ",
-        "versionId": "8490bf4b-d110-4234-916c-5a064c0def9f",
-        "event": "deactivated",
-        "userId": "319eaa7a-83a0-4f1d-ba6e-595ef2af39b3"
-      },
-      {
-        "createdAt": "2026-02-19T16:46:13.859Z",
-        "id": 104,
-        "workflowId": "lOVfBNjOpIc3hZxZ",
-        "versionId": "8490bf4b-d110-4234-916c-5a064c0def9f",
-        "event": "deactivated",
-        "userId": "319eaa7a-83a0-4f1d-ba6e-595ef2af39b3"
-      },
-      {
-        "createdAt": "2026-02-19T16:49:47.277Z",
-        "id": 106,
-        "workflowId": "lOVfBNjOpIc3hZxZ",
-        "versionId": "8490bf4b-d110-4234-916c-5a064c0def9f",
-        "event": "deactivated",
-        "userId": "319eaa7a-83a0-4f1d-ba6e-595ef2af39b3"
-      },
-      {
-        "createdAt": "2026-02-19T16:49:47.968Z",
-        "id": 108,
-        "workflowId": "lOVfBNjOpIc3hZxZ",
-        "versionId": "8490bf4b-d110-4234-916c-5a064c0def9f",
-        "event": "deactivated",
         "userId": "319eaa7a-83a0-4f1d-ba6e-595ef2af39b3"
       }
     ]
