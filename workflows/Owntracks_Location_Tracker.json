@@ -27,7 +27,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Simple Owntracks data validator and transformer\n// This just verifies the basics and passes the data through\nconst item = $input.first();\n\ntry {\n  // Get the body from webhook input\n  const inputData = item.body || item;\n  \n  // Basic validation - does it have coordinates?\n  const hasValidCoordinates = \n    inputData.lat !== undefined && \n    inputData.lon !== undefined;\n\n  if (hasValidCoordinates) {\n    // Create a simple output\n    return [{\n      json: {\n        source: 'owntracks',\n        type: inputData._type || 'location',\n        coordinates: {\n          latitude: inputData.lat,\n          longitude: inputData.lon,\n          accuracy: inputData.acc || 0\n        },\n        device: {\n          battery: inputData.batt || 0,\n          trigger: inputData.t || '',\n          timestamp: inputData.tst || 0\n        },\n        raw: inputData,\n        valid: true,\n        skip: false\n      }\n    }];\n  } else {\n    // Log invalid data but still return something\n    console.log('Invalid data received:', JSON.stringify(inputData));\n    return [{\n      json: {\n        valid: false,\n        skip: true,\n        raw: inputData,\n        reason: 'Missing coordinates'\n      }\n    }];\n  }\n} catch (error) {\n  // Handle any errors\n  console.error('Error processing Owntracks data:', error);\n  return [{\n    json: {\n      valid: false,\n      skip: true,\n      error: error.message\n    }\n  }];\n}"
+        "jsCode": "// Filter Location Data - validates data and determines if it should be processed\nconst item = $input.first();\n\ntry {\n  // Get the data, handling the nested structure\n  let inputData = item;\n  \n  // Handle different possible structures\n  if (item.json && item.json.body && item.json.body.lat) {\n    // Data is in item.json.body\n    inputData = item.json.body;\n  } else if (item.body && item.body.lat) {\n    // Data is in item.body\n    inputData = item.body;\n  }\n  \n  // Basic validation - does it have coordinates?\n  const hasValidCoordinates = \n    inputData.lat !== undefined && \n    inputData.lon !== undefined;\n\n  console.log(\"Data structure:\", JSON.stringify(item));\n  console.log(\"Using data:\", JSON.stringify(inputData));\n  console.log(\"Has coordinates:\", hasValidCoordinates);\n\n  if (hasValidCoordinates) {\n    // Create a properly structured output\n    return [{\n      json: {\n        source: 'owntracks',\n        type: inputData._type || 'location',\n        coordinates: {\n          latitude: inputData.lat,\n          longitude: inputData.lon,\n          accuracy: inputData.acc || 0\n        },\n        device: {\n          battery: inputData.batt || 0,\n          trigger: inputData.t || '',\n          timestamp: inputData.tst || 0\n        },\n        raw: inputData,\n        valid: true,\n        skip: false\n      }\n    }];\n  } else {\n    // Log invalid data but still return something\n    console.log('Invalid data received:', JSON.stringify(inputData));\n    return [{\n      json: {\n        valid: false,\n        skip: true,\n        raw: item,\n        reason: 'Missing coordinates'\n      }\n    }];\n  }\n} catch (error) {\n  // Handle any errors\n  console.error('Error processing Owntracks data:', error);\n  return [{\n    json: {\n      valid: false,\n      skip: true,\n      error: error.message,\n      raw: item\n    }\n  }];\n}"
       },
       "id": "filter-location",
       "name": "Filter Location Data",
@@ -55,6 +55,19 @@
       "position": [
         656,
         304
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Format for Poke Webhook\nconst item = $input.first();\ntry {\n  // Extract the data we need\n  const locationData = {\n    source: item.json.source,\n    type: item.json.type,\n    coordinates: item.json.coordinates,\n    device: item.json.device\n  };\n  \n  // Convert to the format Poke expects\n  return [{\n    json: {\n      message: JSON.stringify(locationData)\n    }\n  }];\n} catch (error) {\n  console.error('Error formatting for Poke:', error);\n  return [{\n    json: {\n      message: JSON.stringify({\n        error: error.message,\n        source: \"owntracks\"\n      })\n    }\n  }];\n}"
+      },
+      "id": "format-for-poke",
+      "name": "Format for Poke Webhook",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        848,
+        208
       ]
     },
     {
@@ -90,7 +103,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
       "position": [
-        864,
+        1040,
         208
       ],
       "credentials": {
@@ -110,7 +123,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1056,
+        1232,
         208
       ]
     },
@@ -170,7 +183,7 @@
       "main": [
         [
           {
-            "node": "Send to Poke",
+            "node": "Format for Poke Webhook",
             "type": "main",
             "index": 0
           }
@@ -178,6 +191,17 @@
         [
           {
             "node": "Log Skipped",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format for Poke Webhook": {
+      "main": [
+        [
+          {
+            "node": "Send to Poke",
             "type": "main",
             "index": 0
           }
@@ -208,7 +232,7 @@
   "pinData": {},
   "versionId": "33a4df28-185f-45fb-8ff9-ff2c8f8f45c0",
   "activeVersionId": "33a4df28-185f-45fb-8ff9-ff2c8f8f45c0",
-  "versionCounter": 30,
+  "versionCounter": 31,
   "triggerCount": 1,
   "shared": [
     {
@@ -256,7 +280,7 @@
       },
       {
         "parameters": {
-          "jsCode": "// Simple Owntracks data validator and transformer\n// This just verifies the basics and passes the data through\nconst item = $input.first();\n\ntry {\n  // Get the body from webhook input\n  const inputData = item.body || item;\n  \n  // Basic validation - does it have coordinates?\n  const hasValidCoordinates = \n    inputData.lat !== undefined && \n    inputData.lon !== undefined;\n\n  if (hasValidCoordinates) {\n    // Create a simple output\n    return [{\n      json: {\n        source: 'owntracks',\n        type: inputData._type || 'location',\n        coordinates: {\n          latitude: inputData.lat,\n          longitude: inputData.lon,\n          accuracy: inputData.acc || 0\n        },\n        device: {\n          battery: inputData.batt || 0,\n          trigger: inputData.t || '',\n          timestamp: inputData.tst || 0\n        },\n        raw: inputData,\n        valid: true,\n        skip: false\n      }\n    }];\n  } else {\n    // Log invalid data but still return something\n    console.log('Invalid data received:', JSON.stringify(inputData));\n    return [{\n      json: {\n        valid: false,\n        skip: true,\n        raw: inputData,\n        reason: 'Missing coordinates'\n      }\n    }];\n  }\n} catch (error) {\n  // Handle any errors\n  console.error('Error processing Owntracks data:', error);\n  return [{\n    json: {\n      valid: false,\n      skip: true,\n      error: error.message\n    }\n  }];\n}"
+          "jsCode": "// Filter Location Data - validates data and determines if it should be processed\nconst item = $input.first();\n\ntry {\n  // Get the data, handling the nested structure\n  let inputData = item;\n  \n  // Handle different possible structures\n  if (item.json && item.json.body && item.json.body.lat) {\n    // Data is in item.json.body\n    inputData = item.json.body;\n  } else if (item.body && item.body.lat) {\n    // Data is in item.body\n    inputData = item.body;\n  }\n  \n  // Basic validation - does it have coordinates?\n  const hasValidCoordinates = \n    inputData.lat !== undefined && \n    inputData.lon !== undefined;\n\n  console.log(\"Data structure:\", JSON.stringify(item));\n  console.log(\"Using data:\", JSON.stringify(inputData));\n  console.log(\"Has coordinates:\", hasValidCoordinates);\n\n  if (hasValidCoordinates) {\n    // Create a properly structured output\n    return [{\n      json: {\n        source: 'owntracks',\n        type: inputData._type || 'location',\n        coordinates: {\n          latitude: inputData.lat,\n          longitude: inputData.lon,\n          accuracy: inputData.acc || 0\n        },\n        device: {\n          battery: inputData.batt || 0,\n          trigger: inputData.t || '',\n          timestamp: inputData.tst || 0\n        },\n        raw: inputData,\n        valid: true,\n        skip: false\n      }\n    }];\n  } else {\n    // Log invalid data but still return something\n    console.log('Invalid data received:', JSON.stringify(inputData));\n    return [{\n      json: {\n        valid: false,\n        skip: true,\n        raw: item,\n        reason: 'Missing coordinates'\n      }\n    }];\n  }\n} catch (error) {\n  // Handle any errors\n  console.error('Error processing Owntracks data:', error);\n  return [{\n    json: {\n      valid: false,\n      skip: true,\n      error: error.message,\n      raw: item\n    }\n  }];\n}"
         },
         "id": "filter-location",
         "name": "Filter Location Data",
@@ -284,6 +308,19 @@
         "position": [
           656,
           304
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "// Format for Poke Webhook\nconst item = $input.first();\ntry {\n  // Extract the data we need\n  const locationData = {\n    source: item.json.source,\n    type: item.json.type,\n    coordinates: item.json.coordinates,\n    device: item.json.device\n  };\n  \n  // Convert to the format Poke expects\n  return [{\n    json: {\n      message: JSON.stringify(locationData)\n    }\n  }];\n} catch (error) {\n  console.error('Error formatting for Poke:', error);\n  return [{\n    json: {\n      message: JSON.stringify({\n        error: error.message,\n        source: \"owntracks\"\n      })\n    }\n  }];\n}"
+        },
+        "id": "format-for-poke",
+        "name": "Format for Poke Webhook",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          848,
+          208
         ]
       },
       {
@@ -319,7 +356,7 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4,
         "position": [
-          864,
+          1040,
           208
         ],
         "credentials": {
@@ -339,7 +376,7 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          1056,
+          1232,
           208
         ]
       },
@@ -399,7 +436,7 @@
         "main": [
           [
             {
-              "node": "Send to Poke",
+              "node": "Format for Poke Webhook",
               "type": "main",
               "index": 0
             }
@@ -407,6 +444,17 @@
           [
             {
               "node": "Log Skipped",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Format for Poke Webhook": {
+        "main": [
+          [
+            {
+              "node": "Send to Poke",
               "type": "main",
               "index": 0
             }
