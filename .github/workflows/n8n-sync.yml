@@ -29,6 +29,11 @@ on:
         required: false
         type: boolean
         default: false
+      fail_on_error:
+        description: 'Fail job if any workflow push fails (recommended: true)'
+        required: false
+        type: boolean
+        default: true
 
 jobs:
   sync:
@@ -65,11 +70,13 @@ jobs:
           echo "N8N_BASE_URL_CLEAN=${BASE_URL}" >> $GITHUB_ENV
           echo "AUTH_METHOD=${{ github.event.inputs.auth_method || 'auto' }}" >> $GITHUB_ENV
           echo "DEBUG_MODE=${{ github.event.inputs.debug_mode || 'false' }}" >> $GITHUB_ENV
+          echo "FAIL_ON_ERROR=${{ github.event.inputs.fail_on_error || 'true' }}" >> $GITHUB_ENV
           
           if [ "${{ github.event.inputs.debug_mode || 'false' }}" == "true" ]; then
             echo "🐛 Debug mode enabled"
             echo "Base URL: ${BASE_URL}"
             echo "Auth Method: ${{ github.event.inputs.auth_method || 'auto' }}"
+            echo "Fail on Error: ${{ github.event.inputs.fail_on_error || 'true' }}"
           fi
 
       - name: Test n8n connection and detect authentication method
@@ -273,6 +280,7 @@ jobs:
         if: github.event.inputs.sync_direction == 'push'
         run: |
           echo "⬆️  Pushing workflows to n8n..."
+          echo ""
           
           BASE_URL="${N8N_BASE_URL_CLEAN}"
           AUTH_HEADER="${WORKING_AUTH_HEADER}"
@@ -293,8 +301,75 @@ jobs:
             exit 1
           fi
           
+          echo "✅ Retrieved workflow list from n8n"
+          echo ""
+          
+          # Function to validate workflow JSON structure
+          validate_workflow() {
+            local file=$1
+            local errors=""
+            
+            if [ "$DEBUG_MODE" == "true" ]; then
+              echo "  🔍 Validating workflow structure..."
+            fi
+            
+            # Check if file is valid JSON
+            if ! jq empty "$file" 2>/dev/null; then
+              errors="${errors}Invalid JSON syntax. "
+              return 1
+            fi
+            
+            # Check for required fields
+            local name=$(jq -r '.name // empty' "$file" 2>/dev/null)
+            if [ -z "$name" ] || [ "$name" == "null" ]; then
+              errors="${errors}Missing required field: name. "
+            fi
+            
+            local nodes=$(jq -r '.nodes // empty' "$file" 2>/dev/null)
+            if [ -z "$nodes" ] || [ "$nodes" == "null" ]; then
+              errors="${errors}Missing required field: nodes. "
+            fi
+            
+            local connections=$(jq -r '.connections // empty' "$file" 2>/dev/null)
+            if [ -z "$connections" ] || [ "$connections" == "null" ]; then
+              errors="${errors}Missing required field: connections. "
+            fi
+            
+            # Check if nodes array is not empty
+            local nodes_count=$(jq '.nodes | length' "$file" 2>/dev/null)
+            if [ "$nodes_count" == "0" ]; then
+              errors="${errors}Nodes array is empty (workflow must have at least one node). "
+            fi
+            
+            # Validate node structure
+            local invalid_nodes=$(jq '[.nodes[] | select(.id == null or .type == null or .parameters == null)] | length' "$file" 2>/dev/null)
+            if [ "$invalid_nodes" != "0" ]; then
+              errors="${errors}Some nodes are missing required properties (id, type, or parameters). "
+            fi
+            
+            if [ -n "$errors" ]; then
+              echo "  ❌ Validation failed: $errors"
+              if [ "$DEBUG_MODE" == "true" ]; then
+                echo "  Workflow structure:"
+                jq '{name: .name, nodes_count: (.nodes | length), connections: .connections, has_settings: (.settings != null)}' "$file" 2>/dev/null
+              fi
+              return 1
+            fi
+            
+            if [ "$DEBUG_MODE" == "true" ]; then
+              echo "  ✅ Validation passed"
+              echo "  Workflow: $name"
+              echo "  Nodes: $nodes_count"
+            fi
+            
+            return 0
+          }
+          
           SUCCESS_COUNT=0
           TOTAL_COUNT=0
+          FAILED_WORKFLOWS=()
+          FAILED_REASONS=()
+          SUCCEEDED_WORKFLOWS=()
           
           for workflow_file in workflows/*.json; do
             if [ ! -f "$workflow_file" ]; then
@@ -309,7 +384,26 @@ jobs:
             fi
             
             TOTAL_COUNT=$((TOTAL_COUNT + 1))
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
             echo "📤 Processing: $WORKFLOW_NAME_FROM_FILE"
+            echo ""
+            
+            # Validate workflow structure BEFORE attempting to push
+            if ! validate_workflow "$workflow_file"; then
+              echo "  ⚠️  Skipping due to validation errors"
+              FAILED_WORKFLOWS+=("$WORKFLOW_NAME_FROM_FILE")
+              FAILED_REASONS+=("Validation failed - see errors above")
+              
+              if [ "$FAIL_ON_ERROR" == "true" ]; then
+                echo ""
+                echo "❌ Stopping due to validation failure (fail_on_error=true)"
+                echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                break
+              fi
+              echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+              echo ""
+              continue
+            fi
             
             # Get workflow name from JSON
             JSON_NAME=$(cat "$workflow_file" | jq -r '.name' 2>/dev/null)
@@ -317,8 +411,10 @@ jobs:
               JSON_NAME="$WORKFLOW_NAME_FROM_FILE"
             fi
             
+            echo "  📝 Workflow name: $JSON_NAME"
+            
             # Strip extra properties that n8n API doesn't accept
-            # Only keep the properties that n8n API accepts
+            # Keep only the properties that n8n API accepts
             echo "  🧹 Cleaning workflow data..."
             cat "$workflow_file" | jq '{
               name: .name,
@@ -327,43 +423,150 @@ jobs:
               settings: .settings,
               staticData: .staticData,
               active: .active,
-              tags: .tags
-            }' > workflow_clean.json
+              tags: .tags,
+              description: .description
+            } | del(..|nulls)' > workflow_clean.json
             
             if [ "$DEBUG_MODE" == "true" ]; then
               echo "  Original workflow properties:"
               cat "$workflow_file" | jq 'keys' 2>/dev/null
               echo "  Cleaned workflow properties:"
               cat workflow_clean.json | jq 'keys' 2>/dev/null
+              echo "  Cleaned workflow size: $(wc -c < workflow_clean.json) bytes"
             fi
             
-            # Check if workflow exists in n8n
-            EXISTING_ID=$(cat workflows_list.json | jq -r ".data[] | select(.name == \"$JSON_NAME\") | .id" 2>/dev/null)
+            # Check if workflow exists in n8n (trim spaces for comparison)
+            EXISTING_ID=$(cat workflows_list.json | jq -r ".data[] | select(.name | gsub(\"^\\\\s+|\\\\s+$\"; \"\") == \"$(echo $JSON_NAME | xargs)\") | .id" 2>/dev/null)
             
+            OPERATION=""
             if [ "$EXISTING_ID" != "null" ] && [ -n "$EXISTING_ID" ]; then
               echo "  🔄 Updating existing workflow (ID: $EXISTING_ID)"
-              HTTP_CODE=$(curl -s -w '%{http_code}' -o response.json -X PUT -H "accept: application/json" -H "$AUTH_HEADER" -H "Content-Type: application/json" -d @workflow_clean.json "$BASE_URL/api/v1/workflows/$EXISTING_ID")
+              OPERATION="UPDATE"
+              HTTP_CODE=$(curl -s -w '%{http_code}' -o response.json -X PUT \
+                -H "accept: application/json" \
+                -H "$AUTH_HEADER" \
+                -H "Content-Type: application/json" \
+                -d @workflow_clean.json \
+                "$BASE_URL/api/v1/workflows/$EXISTING_ID")
             else
               echo "  ➕ Creating new workflow"
-              HTTP_CODE=$(curl -s -w '%{http_code}' -o response.json -X POST -H "accept: application/json" -H "$AUTH_HEADER" -H "Content-Type: application/json" -d @workflow_clean.json "$BASE_URL/api/v1/workflows")
+              OPERATION="CREATE"
+              HTTP_CODE=$(curl -s -w '%{http_code}' -o response.json -X POST \
+                -H "accept: application/json" \
+                -H "$AUTH_HEADER" \
+                -H "Content-Type: application/json" \
+                -d @workflow_clean.json \
+                "$BASE_URL/api/v1/workflows")
             fi
             
+            echo "  📡 API Response: HTTP $HTTP_CODE"
+            
             if [ "$HTTP_CODE" == "200" ] || [ "$HTTP_CODE" == "201" ]; then
-              echo "  ✅ Success (HTTP $HTTP_CODE)"
+              echo "  ✅ Success!"
               SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
-            else
-              echo "  ❌ Failed (HTTP $HTTP_CODE)"
-              echo "  Response:"
-              cat response.json
+              SUCCEEDED_WORKFLOWS+=("$WORKFLOW_NAME_FROM_FILE")
+              
               if [ "$DEBUG_MODE" == "true" ]; then
+                echo "  Response body:"
+                cat response.json | jq '.' 2>/dev/null || cat response.json
+              fi
+            else
+              echo "  ❌ Failed with HTTP $HTTP_CODE"
+              echo ""
+              echo "  📄 Error Response:"
+              
+              # Try to parse and display error message
+              ERROR_MSG=$(cat response.json | jq -r '.message // .error // "Unknown error"' 2>/dev/null)
+              echo "  $ERROR_MSG"
+              
+              if [ "$DEBUG_MODE" == "true" ]; then
+                echo ""
+                echo "  Full response body:"
+                cat response.json | jq '.' 2>/dev/null || cat response.json
+                echo ""
                 echo "  Cleaned payload that was sent:"
                 cat workflow_clean.json | jq '.'
               fi
+              
+              # Track failure
+              FAILED_WORKFLOWS+=("$WORKFLOW_NAME_FROM_FILE")
+              FAILED_REASONS+=("HTTP $HTTP_CODE - $ERROR_MSG")
+              
+              # If fail_on_error is true, stop processing
+              if [ "$FAIL_ON_ERROR" == "true" ]; then
+                echo ""
+                echo "  ⛔ Stopping due to error (fail_on_error=true)"
+                echo "  To continue despite errors, set fail_on_error: false"
+                echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                break
+              fi
             fi
+            
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo ""
           done
           
+          # Cleanup temporary files
           rm -f workflows_list.json response.json workflow_clean.json
-          echo "✅ Successfully pushed $SUCCESS_COUNT/$TOTAL_COUNT workflows"
+          
+          # Print summary
+          echo ""
+          echo "═══════════════════════════════════════════"
+          echo "📊 PUSH OPERATION SUMMARY"
+          echo "═══════════════════════════════════════════"
+          echo "Total workflows processed: $TOTAL_COUNT"
+          echo "✅ Successfully pushed: $SUCCESS_COUNT"
+          echo "❌ Failed: ${#FAILED_WORKFLOWS[@]}"
+          echo ""
+          
+          if [ ${#SUCCEEDED_WORKFLOWS[@]} -gt 0 ]; then
+            echo "✅ Succeeded workflows:"
+            for wf in "${SUCCEEDED_WORKFLOWS[@]}"; do
+              echo "   - $wf"
+            done
+            echo ""
+          fi
+          
+          if [ ${#FAILED_WORKFLOWS[@]} -gt 0 ]; then
+            echo "❌ Failed workflows:"
+            for i in "${!FAILED_WORKFLOWS[@]}"; do
+              echo "   - ${FAILED_WORKFLOWS[$i]}"
+              echo "     Reason: ${FAILED_REASONS[$i]}"
+            done
+            echo ""
+            echo "💡 Troubleshooting tips:"
+            echo "   1. Run with debug_mode: true for detailed output"
+            echo "   2. Check workflow JSON files for syntax errors"
+            echo "   3. Verify n8n API accepts the workflow structure"
+            echo "   4. Check n8n server logs for more details"
+            echo ""
+            
+            if [ "$SUCCESS_COUNT" -gt 0 ]; then
+              echo "⚠️  Note: $SUCCESS_COUNT workflow(s) were successfully pushed before the failure."
+              echo "   These changes are already applied to n8n."
+              echo "   Consider pulling from n8n to sync the current state."
+            fi
+            echo ""
+          fi
+          
+          echo "═══════════════════════════════════════════"
+          
+          # Exit with error if any workflows failed
+          if [ ${#FAILED_WORKFLOWS[@]} -gt 0 ]; then
+            if [ "$FAIL_ON_ERROR" == "true" ]; then
+              echo ""
+              echo "❌ Push operation failed due to errors"
+              echo "   Set fail_on_error: false to continue despite failures"
+              exit 1
+            else
+              echo ""
+              echo "⚠️  Push operation completed with errors (fail_on_error=false)"
+              echo "   Some workflows were not pushed successfully"
+            fi
+          else
+            echo ""
+            echo "🎉 All workflows pushed successfully!"
+          fi
 
       - name: Commit changes
         if: github.event.inputs.sync_direction == 'pull'
