@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-02-19T12:48:33.133Z",
+  "updatedAt": "2026-02-19T13:35:28.201Z",
   "createdAt": "2026-02-18T19:31:58.189Z",
   "id": "lOVfBNjOpIc3hZxZ",
   "name": "Owntracks Location Tracker",
@@ -28,7 +28,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// Filter Location Data - validates data and determines if it should be processed\nconst item = $input.first();\nconsole.log(\"FULL INPUT:\", JSON.stringify(item, null, 2));\n\ntry {\n  // Try to find the data in various possible locations\n  let inputData = null;\n  \n  if (item.json && item.json.body) {\n    console.log(\"Found item.json.body structure\");\n    inputData = item.json.body;\n  } else if (item.body) {\n    console.log(\"Found item.body structure\");\n    inputData = item.body;\n  } else if (item.lat !== undefined && item.lon !== undefined) {\n    console.log(\"Found direct lat/lon in item\");\n    inputData = item;\n  } else if (item.json && item.json.lat !== undefined && item.json.lon !== undefined) {\n    console.log(\"Found lat/lon in item.json\");\n    inputData = item.json;\n  } else {\n    // More aggressive search\n    const itemStr = JSON.stringify(item);\n    console.log(\"Searching for coordinates in entire item: \" + itemStr.substring(0, 200) + \"...\");\n    \n    // Try to find any object with lat/lon in the entire item\n    const findCoords = (obj, path = \"\") => {\n      if (!obj || typeof obj !== 'object') return null;\n      \n      if (obj.lat !== undefined && obj.lon !== undefined) {\n        console.log(`Found coordinates at path: ${path}`);\n        return obj;\n      }\n      \n      for (const key in obj) {\n        if (typeof obj[key] === 'object') {\n          const result = findCoords(obj[key], `${path}.${key}`);\n          if (result) return result;\n        }\n      }\n      \n      return null;\n    };\n    \n    inputData = findCoords(item);\n  }\n  \n  console.log(\"InputData found:\", inputData ? JSON.stringify(inputData, null, 2) : \"NULL\");\n  \n  // Validate if we found data with coordinates\n  if (inputData && inputData.lat !== undefined && inputData.lon !== undefined) {\n    console.log(`Valid coordinates found: ${inputData.lat}, ${inputData.lon}`);\n    \n    // Create a properly structured output\n    return [{\n      json: {\n        source: 'owntracks',\n        type: inputData._type || 'location',\n        coordinates: {\n          latitude: inputData.lat,\n          longitude: inputData.lon,\n          accuracy: inputData.acc || 0\n        },\n        device: {\n          battery: inputData.batt || 0,\n          trigger: inputData.t || '',\n          timestamp: inputData.tst || 0\n        },\n        raw: inputData,\n        valid: true,\n        skip: false\n      }\n    }];\n  } else {\n    // Log the failure and return with skip flag\n    console.log(\"Failed to find valid coordinates in the input\");\n    return [{\n      json: {\n        valid: false,\n        skip: true,\n        raw: item,\n        reason: 'Missing latitude or longitude'\n      }\n    }];\n  }\n} catch (error) {\n  // Handle any errors\n  console.error('Error processing Owntracks data:', error);\n  return [{\n    json: {\n      valid: false,\n      skip: true,\n      error: error.message,\n      raw: item\n    }\n  }];\n}"
+        "jsCode": "// Owntracks Location Data Filter and Transformer\n// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nconst item = $input.item.json;\nconst MIN_ACCURACY = 50;  // meters\nconst MIN_DISTANCE = 20;  // meters\n\n// Log incoming data for debugging\nconsole.log('📍 Received Owntracks data:', JSON.stringify(item, null, 2));\n\n// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n// EXTRACT OWNTRACKS DATA\n// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n// Owntracks sends data in this format:\n// {\n//   \"_type\": \"location\",\n//   \"lat\": 51.5074,\n//   \"lon\": -0.1278,\n//   \"acc\": 10,\n//   \"tst\": 1234567890,\n//   \"alt\": 100,\n//   \"vel\": 0,\n//   \"batt\": 85,\n//   \"tid\": \"JF\",\n//   \"t\": \"u\"\n// }\n\nconst data = {\n  type: item._type || 'location',\n  latitude: item.lat,\n  longitude: item.lon,\n  accuracy: item.acc,\n  timestamp: item.tst,\n  altitude: item.alt,\n  velocity: item.vel,\n  battery: item.batt,\n  tracker_id: item.tid,\n  trigger: item.t  // 'u' = user, 'p' = ping, 't' = timer, etc.\n};\n\n// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n// VALIDATION\n// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nconst validationErrors = [];\n\nif (!data.latitude || !data.longitude) {\n  validationErrors.push('Missing latitude or longitude');\n}\n\nif (data.latitude < -90 || data.latitude > 90) {\n  validationErrors.push('Invalid latitude: ' + data.latitude);\n}\n\nif (data.longitude < -180 || data.longitude > 180) {\n  validationErrors.push('Invalid longitude: ' + data.longitude);\n}\n\nif (validationErrors.length > 0) {\n  console.error('❌ Validation errors:', validationErrors);\n  return {\n    json: {\n      error: 'Validation failed',\n      details: validationErrors,\n      skip: true\n    }\n  };\n}\n\n// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n// FILTERING LOGIC\n// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nconst shouldSkip = [];\n\n// Filter 1: GPS Accuracy\n// Skip if accuracy is worse than threshold (higher = worse)\nif (data.accuracy && data.accuracy > MIN_ACCURACY) {\n  shouldSkip.push(`Low accuracy: ${data.accuracy}m > ${MIN_ACCURACY}m`);\n}\n\n// Filter 2: Check if this is a significant movement\n// (This would ideally compare with last known position from storage)\n// For now, we'll accept all validated locations\n\n// Filter 3: Ignore certain trigger types if needed\n// For example, skip 'p' (ping) updates if you only want manual/timer\nconst ignoredTriggers = [];  // e.g., ['p'] to ignore pings\n\nif (data.trigger && ignoredTriggers.includes(data.trigger)) {\n  shouldSkip.push(`Ignored trigger type: ${data.trigger}`);\n}\n\nif (shouldSkip.length > 0) {\n  console.log('⏭️  Skipping location update:', shouldSkip);\n  return {\n    json: {\n      skip: true,\n      reason: shouldSkip,\n      data: data\n    }\n  };\n}\n\n// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n// TRANSFORM FOR POKE\n// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n// Convert timestamp to ISO format\nconst timestamp = data.timestamp\n  ? new Date(data.timestamp * 1000).toISOString()\n  : new Date().toISOString();\n\n// Format data for Poke API\nconst pokePayload = {\n  type: 'location_update',\n  source: 'owntracks',\n  timestamp: timestamp,\n  location: {\n    latitude: data.latitude,\n    longitude: data.longitude,\n    accuracy: data.accuracy,\n    altitude: data.altitude,\n    velocity: data.velocity\n  },\n  device: {\n    tracker_id: data.tracker_id,\n    battery: data.battery,\n    trigger: data.trigger\n  },\n  metadata: {\n    raw_timestamp: data.timestamp,\n    processed_at: new Date().toISOString()\n  }\n};\n\nconsole.log('✅ Location update passed filters');\nconsole.log('📤 Sending to Poke:', JSON.stringify(pokePayload, null, 2));\n\nreturn {\n  json: {\n    skip: false,\n    poke_payload: pokePayload,\n    original_data: data\n  }\n};"
       },
       "id": "filter-location",
       "name": "Filter Location Data",
@@ -63,16 +63,7 @@
         "method": "POST",
         "url": "=https://poke.com/api/v1/inbound-sms/webhook",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
-        },
+        "genericAuthType": "httpBearerAuth",
         "sendBody": true,
         "bodyParameters": {
           "parameters": []
@@ -98,13 +89,17 @@
         "httpHeaderAuth": {
           "id": "poke-api-key",
           "name": "Poke API Key"
+        },
+        "httpBearerAuth": {
+          "id": "H3j7klwNJz7CiJaD",
+          "name": "Bearer Auth account"
         }
       }
     },
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// Success handler\nconst item = $input.item.json;\n\nconsole.log('✅ Successfully sent to Poke');\nconsole.log('Response:', JSON.stringify(item, null, 2));\n\nreturn {\n  json: {\n    success: true,\n    status: item.statusCode || 200,\n    message: 'Location update sent to Poke',\n    timestamp: new Date().toISOString()\n  }\n};"
+        "jsCode": "// Success handler\\nconst item = $input.item.json;\\n\\nconsole.log('✅ Successfully sent to Poke');\\nconsole.log('Response:', JSON.stringify(item, null, 2));\\n\\nreturn {\\n  json: {\\n    success: true,\\n    status: item.statusCode || 200,\\n    message: 'Location update sent to Poke',\\n    timestamp: new Date().toISOString()\\n  }\\n};"
       },
       "id": "log-success",
       "name": "Log Success",
@@ -118,7 +113,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// Skipped handler\nconst item = $input.item.json;\n\nconsole.log('⏭️  Location update skipped');\nconsole.log('Reason:', item.reason || 'No reason provided');\n\nreturn {\n  json: {\n    skipped: true,\n    reason: item.reason,\n    timestamp: new Date().toISOString()\n  }\n};"
+        "jsCode": "// Skipped handler\\nconst item = $input.item.json;\\n\\nconsole.log('⏭️  Location update skipped');\\nconsole.log('Reason:', item.reason || 'No reason provided');\\n\\nreturn {\\n  json: {\\n    skipped: true,\\n    reason: item.reason,\\n    timestamp: new Date().toISOString()\\n  }\\n};"
       },
       "id": "log-skipped",
       "name": "Log Skipped",
@@ -132,7 +127,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// Error handler\nconst error = $input.item.json;\n\nconsole.error('❌ Error processing location update');\nconsole.error('Error:', JSON.stringify(error, null, 2));\n\n// Return error details\nreturn {\n  json: {\n    error: true,\n    message: error.message || 'Unknown error',\n    details: error,\n    timestamp: new Date().toISOString()\n  }\n};"
+        "jsCode": "// Error handler\\nconst error = $input.item.json;\\n\\nconsole.error('❌ Error processing location update');\\nconsole.error('Error:', JSON.stringify(error, null, 2));\\n\\n// Return error details\\nreturn {\\n  json: {\\n    error: true,\\n    message: error.message || 'Unknown error',\\n    details: error,\\n    timestamp: new Date().toISOString()\\n  }\\n};"
       },
       "id": "handle-error",
       "name": "Handle Error",
@@ -207,9 +202,9 @@
   "staticData": null,
   "meta": null,
   "pinData": {},
-  "versionId": "eb966d35-71a7-434e-bf0d-0758ea635c41",
-  "activeVersionId": "eb966d35-71a7-434e-bf0d-0758ea635c41",
-  "versionCounter": 56,
+  "versionId": "873486d2-eaa8-43c7-884d-f2320841a354",
+  "activeVersionId": "873486d2-eaa8-43c7-884d-f2320841a354",
+  "versionCounter": 70,
   "triggerCount": 1,
   "shared": [
     {
@@ -232,9 +227,9 @@
   ],
   "tags": [],
   "activeVersion": {
-    "updatedAt": "2026-02-19T12:48:38.000Z",
-    "createdAt": "2026-02-19T12:48:33.135Z",
-    "versionId": "eb966d35-71a7-434e-bf0d-0758ea635c41",
+    "updatedAt": "2026-02-19T13:35:42.000Z",
+    "createdAt": "2026-02-19T13:35:28.203Z",
+    "versionId": "873486d2-eaa8-43c7-884d-f2320841a354",
     "workflowId": "lOVfBNjOpIc3hZxZ",
     "nodes": [
       {
@@ -258,7 +253,7 @@
       {
         "parameters": {
           "mode": "runOnceForEachItem",
-          "jsCode": "// Filter Location Data - validates data and determines if it should be processed\nconst item = $input.first();\nconsole.log(\"FULL INPUT:\", JSON.stringify(item, null, 2));\n\ntry {\n  // Try to find the data in various possible locations\n  let inputData = null;\n  \n  if (item.json && item.json.body) {\n    console.log(\"Found item.json.body structure\");\n    inputData = item.json.body;\n  } else if (item.body) {\n    console.log(\"Found item.body structure\");\n    inputData = item.body;\n  } else if (item.lat !== undefined && item.lon !== undefined) {\n    console.log(\"Found direct lat/lon in item\");\n    inputData = item;\n  } else if (item.json && item.json.lat !== undefined && item.json.lon !== undefined) {\n    console.log(\"Found lat/lon in item.json\");\n    inputData = item.json;\n  } else {\n    // More aggressive search\n    const itemStr = JSON.stringify(item);\n    console.log(\"Searching for coordinates in entire item: \" + itemStr.substring(0, 200) + \"...\");\n    \n    // Try to find any object with lat/lon in the entire item\n    const findCoords = (obj, path = \"\") => {\n      if (!obj || typeof obj !== 'object') return null;\n      \n      if (obj.lat !== undefined && obj.lon !== undefined) {\n        console.log(`Found coordinates at path: ${path}`);\n        return obj;\n      }\n      \n      for (const key in obj) {\n        if (typeof obj[key] === 'object') {\n          const result = findCoords(obj[key], `${path}.${key}`);\n          if (result) return result;\n        }\n      }\n      \n      return null;\n    };\n    \n    inputData = findCoords(item);\n  }\n  \n  console.log(\"InputData found:\", inputData ? JSON.stringify(inputData, null, 2) : \"NULL\");\n  \n  // Validate if we found data with coordinates\n  if (inputData && inputData.lat !== undefined && inputData.lon !== undefined) {\n    console.log(`Valid coordinates found: ${inputData.lat}, ${inputData.lon}`);\n    \n    // Create a properly structured output\n    return [{\n      json: {\n        source: 'owntracks',\n        type: inputData._type || 'location',\n        coordinates: {\n          latitude: inputData.lat,\n          longitude: inputData.lon,\n          accuracy: inputData.acc || 0\n        },\n        device: {\n          battery: inputData.batt || 0,\n          trigger: inputData.t || '',\n          timestamp: inputData.tst || 0\n        },\n        raw: inputData,\n        valid: true,\n        skip: false\n      }\n    }];\n  } else {\n    // Log the failure and return with skip flag\n    console.log(\"Failed to find valid coordinates in the input\");\n    return [{\n      json: {\n        valid: false,\n        skip: true,\n        raw: item,\n        reason: 'Missing latitude or longitude'\n      }\n    }];\n  }\n} catch (error) {\n  // Handle any errors\n  console.error('Error processing Owntracks data:', error);\n  return [{\n    json: {\n      valid: false,\n      skip: true,\n      error: error.message,\n      raw: item\n    }\n  }];\n}"
+          "jsCode": "// Owntracks Location Data Filter and Transformer\n// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nconst item = $input.item.json;\nconst MIN_ACCURACY = 50;  // meters\nconst MIN_DISTANCE = 20;  // meters\n\n// Log incoming data for debugging\nconsole.log('📍 Received Owntracks data:', JSON.stringify(item, null, 2));\n\n// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n// EXTRACT OWNTRACKS DATA\n// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n// Owntracks sends data in this format:\n// {\n//   \"_type\": \"location\",\n//   \"lat\": 51.5074,\n//   \"lon\": -0.1278,\n//   \"acc\": 10,\n//   \"tst\": 1234567890,\n//   \"alt\": 100,\n//   \"vel\": 0,\n//   \"batt\": 85,\n//   \"tid\": \"JF\",\n//   \"t\": \"u\"\n// }\n\nconst data = {\n  type: item._type || 'location',\n  latitude: item.lat,\n  longitude: item.lon,\n  accuracy: item.acc,\n  timestamp: item.tst,\n  altitude: item.alt,\n  velocity: item.vel,\n  battery: item.batt,\n  tracker_id: item.tid,\n  trigger: item.t  // 'u' = user, 'p' = ping, 't' = timer, etc.\n};\n\n// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n// VALIDATION\n// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nconst validationErrors = [];\n\nif (!data.latitude || !data.longitude) {\n  validationErrors.push('Missing latitude or longitude');\n}\n\nif (data.latitude < -90 || data.latitude > 90) {\n  validationErrors.push('Invalid latitude: ' + data.latitude);\n}\n\nif (data.longitude < -180 || data.longitude > 180) {\n  validationErrors.push('Invalid longitude: ' + data.longitude);\n}\n\nif (validationErrors.length > 0) {\n  console.error('❌ Validation errors:', validationErrors);\n  return {\n    json: {\n      error: 'Validation failed',\n      details: validationErrors,\n      skip: true\n    }\n  };\n}\n\n// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n// FILTERING LOGIC\n// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nconst shouldSkip = [];\n\n// Filter 1: GPS Accuracy\n// Skip if accuracy is worse than threshold (higher = worse)\nif (data.accuracy && data.accuracy > MIN_ACCURACY) {\n  shouldSkip.push(`Low accuracy: ${data.accuracy}m > ${MIN_ACCURACY}m`);\n}\n\n// Filter 2: Check if this is a significant movement\n// (This would ideally compare with last known position from storage)\n// For now, we'll accept all validated locations\n\n// Filter 3: Ignore certain trigger types if needed\n// For example, skip 'p' (ping) updates if you only want manual/timer\nconst ignoredTriggers = [];  // e.g., ['p'] to ignore pings\n\nif (data.trigger && ignoredTriggers.includes(data.trigger)) {\n  shouldSkip.push(`Ignored trigger type: ${data.trigger}`);\n}\n\nif (shouldSkip.length > 0) {\n  console.log('⏭️  Skipping location update:', shouldSkip);\n  return {\n    json: {\n      skip: true,\n      reason: shouldSkip,\n      data: data\n    }\n  };\n}\n\n// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n// TRANSFORM FOR POKE\n// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n// Convert timestamp to ISO format\nconst timestamp = data.timestamp\n  ? new Date(data.timestamp * 1000).toISOString()\n  : new Date().toISOString();\n\n// Format data for Poke API\nconst pokePayload = {\n  type: 'location_update',\n  source: 'owntracks',\n  timestamp: timestamp,\n  location: {\n    latitude: data.latitude,\n    longitude: data.longitude,\n    accuracy: data.accuracy,\n    altitude: data.altitude,\n    velocity: data.velocity\n  },\n  device: {\n    tracker_id: data.tracker_id,\n    battery: data.battery,\n    trigger: data.trigger\n  },\n  metadata: {\n    raw_timestamp: data.timestamp,\n    processed_at: new Date().toISOString()\n  }\n};\n\nconsole.log('✅ Location update passed filters');\nconsole.log('📤 Sending to Poke:', JSON.stringify(pokePayload, null, 2));\n\nreturn {\n  json: {\n    skip: false,\n    poke_payload: pokePayload,\n    original_data: data\n  }\n};"
         },
         "id": "filter-location",
         "name": "Filter Location Data",
@@ -293,16 +288,7 @@
           "method": "POST",
           "url": "=https://poke.com/api/v1/inbound-sms/webhook",
           "authentication": "genericCredentialType",
-          "genericAuthType": "httpHeaderAuth",
-          "sendHeaders": true,
-          "headerParameters": {
-            "parameters": [
-              {
-                "name": "Content-Type",
-                "value": "application/json"
-              }
-            ]
-          },
+          "genericAuthType": "httpBearerAuth",
           "sendBody": true,
           "bodyParameters": {
             "parameters": []
@@ -328,13 +314,17 @@
           "httpHeaderAuth": {
             "id": "poke-api-key",
             "name": "Poke API Key"
+          },
+          "httpBearerAuth": {
+            "id": "H3j7klwNJz7CiJaD",
+            "name": "Bearer Auth account"
           }
         }
       },
       {
         "parameters": {
           "mode": "runOnceForEachItem",
-          "jsCode": "// Success handler\nconst item = $input.item.json;\n\nconsole.log('✅ Successfully sent to Poke');\nconsole.log('Response:', JSON.stringify(item, null, 2));\n\nreturn {\n  json: {\n    success: true,\n    status: item.statusCode || 200,\n    message: 'Location update sent to Poke',\n    timestamp: new Date().toISOString()\n  }\n};"
+          "jsCode": "// Success handler\\nconst item = $input.item.json;\\n\\nconsole.log('✅ Successfully sent to Poke');\\nconsole.log('Response:', JSON.stringify(item, null, 2));\\n\\nreturn {\\n  json: {\\n    success: true,\\n    status: item.statusCode || 200,\\n    message: 'Location update sent to Poke',\\n    timestamp: new Date().toISOString()\\n  }\\n};"
         },
         "id": "log-success",
         "name": "Log Success",
@@ -348,7 +338,7 @@
       {
         "parameters": {
           "mode": "runOnceForEachItem",
-          "jsCode": "// Skipped handler\nconst item = $input.item.json;\n\nconsole.log('⏭️  Location update skipped');\nconsole.log('Reason:', item.reason || 'No reason provided');\n\nreturn {\n  json: {\n    skipped: true,\n    reason: item.reason,\n    timestamp: new Date().toISOString()\n  }\n};"
+          "jsCode": "// Skipped handler\\nconst item = $input.item.json;\\n\\nconsole.log('⏭️  Location update skipped');\\nconsole.log('Reason:', item.reason || 'No reason provided');\\n\\nreturn {\\n  json: {\\n    skipped: true,\\n    reason: item.reason,\\n    timestamp: new Date().toISOString()\\n  }\\n};"
         },
         "id": "log-skipped",
         "name": "Log Skipped",
@@ -362,7 +352,7 @@
       {
         "parameters": {
           "mode": "runOnceForEachItem",
-          "jsCode": "// Error handler\nconst error = $input.item.json;\n\nconsole.error('❌ Error processing location update');\nconsole.error('Error:', JSON.stringify(error, null, 2));\n\n// Return error details\nreturn {\n  json: {\n    error: true,\n    message: error.message || 'Unknown error',\n    details: error,\n    timestamp: new Date().toISOString()\n  }\n};"
+          "jsCode": "// Error handler\\nconst error = $input.item.json;\\n\\nconsole.error('❌ Error processing location update');\\nconsole.error('Error:', JSON.stringify(error, null, 2));\\n\\n// Return error details\\nreturn {\\n  json: {\\n    error: true,\\n    message: error.message || 'Unknown error',\\n    details: error,\\n    timestamp: new Date().toISOString()\\n  }\\n};"
         },
         "id": "handle-error",
         "name": "Handle Error",
@@ -428,15 +418,15 @@
       }
     },
     "authors": "Lina F",
-    "name": "Version eb966d35",
+    "name": "Version 873486d2",
     "description": "",
     "autosaved": true,
     "workflowPublishHistory": [
       {
-        "createdAt": "2026-02-19T12:48:37.967Z",
-        "id": 37,
+        "createdAt": "2026-02-19T13:35:42.879Z",
+        "id": 43,
         "workflowId": "lOVfBNjOpIc3hZxZ",
-        "versionId": "eb966d35-71a7-434e-bf0d-0758ea635c41",
+        "versionId": "873486d2-eaa8-43c7-884d-f2320841a354",
         "event": "activated",
         "userId": "319eaa7a-83a0-4f1d-ba6e-595ef2af39b3"
       }
