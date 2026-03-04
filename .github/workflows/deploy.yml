@@ -31,7 +31,7 @@ jobs:
       VM_USER: ${{ secrets.VM_USER }}
       VM_DEST_DIR: ${{ secrets.VMDEST_DIR || secrets.VM_DEST_DIR }}
       VM_SERVICE: ${{ secrets.VM_SERVICE }}
-      VM_VENV_PY: ${{ secrets.VM_VENV_PY }}
+      VM_VENV_PY: ${{ secrets.VM_VENV_PY || secrets.VMVENVPY || 'python3' }}
       VM_SSH_KEY_B64: ${{ secrets.VMSSHPRIVATE_KEY_B64 || secrets.VM_SSH_PRIVATE_KEY_B64 }}
       VM_MCP_URL: ${{ secrets.VMMCPURL || secrets.VM_MCP_URL }}
 
@@ -44,7 +44,7 @@ jobs:
           set -euo pipefail
           echo "🔍 Validating deployment configuration..."
 
-          required_vars=(VM_HOST VM_USER VM_DEST_DIR VM_SERVICE VM_VENV_PY VM_SSH_KEY_B64 VM_MCP_URL)
+          required_vars=(VM_HOST VM_USER VM_DEST_DIR VM_SERVICE VM_SSH_KEY_B64 VM_MCP_URL)
           missing=0
           for var in "${required_vars[@]}"; do
             if [ -z "${!var:-}" ]; then
@@ -67,6 +67,7 @@ jobs:
           echo "VM_USER: $VM_USER"
           echo "VM_DEST_DIR: $VM_DEST_DIR"
           echo "VM_SERVICE: $VM_SERVICE"
+          echo "VM_VENV_PY: $VM_VENV_PY"
 
       - name: Setup SSH
         run: |
@@ -145,13 +146,15 @@ jobs:
       - name: Install dependencies
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.restart_only == false }}
         run: |
+          set -euo pipefail
           echo "📚 Installing Python dependencies..."
+          PYTHON_BIN="$VM_VENV_PY"
 
           ssh -i ~/.ssh/deploy_key "$VM_USER@$VM_HOST" \
             "if [ -f '$VM_DEST_DIR/requirements.txt' ]; then \
               echo 'Found requirements.txt, installing dependencies...'; \
-              $VM_VENV_PY -m pip install --upgrade pip && \
-              $VM_VENV_PY -m pip install -r '$VM_DEST_DIR/requirements.txt'; \
+              $PYTHON_BIN -m pip install --upgrade pip && \
+              $PYTHON_BIN -m pip install -r '$VM_DEST_DIR/requirements.txt'; \
               echo '✅ Dependencies installed'; \
             else \
               echo '⚠️  No requirements.txt found, skipping dependency installation'; \
@@ -347,6 +350,12 @@ jobs:
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo "📋 SERVICE LOGS (Last 30 lines)"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+          if [ ! -f ~/.ssh/deploy_key ]; then
+            echo "Skipping remote logs because SSH key was not set up."
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            exit 0
+          fi
 
           ssh -i ~/.ssh/deploy_key "$VM_USER@$VM_HOST" \
             "sudo journalctl -u $VM_SERVICE -n 30 --no-pager || true"
