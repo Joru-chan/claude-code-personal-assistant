@@ -4,123 +4,154 @@ on:
   push:
     branches: [main]
     paths:
-      - 'vm_server/**'
-      - 'vm/deploy.sh'
-      - '.github/workflows/deploy.yml'
+      - "vm_server/**"
+      - "vm/deploy.sh"
+      - ".github/workflows/deploy.yml"
   workflow_dispatch:
     inputs:
       restart_only:
-        description: 'Restart only (skip rsync and dependency sync)'
+        description: "Restart only (skip rsync and dependency sync)"
         required: false
         type: boolean
         default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-to-vm-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     environment: production
-    
+    env:
+      VM_HOST: ${{ secrets.VM_HOST }}
+      VM_USER: ${{ secrets.VM_USER }}
+      VM_DEST_DIR: ${{ secrets.VMDEST_DIR || secrets.VM_DEST_DIR }}
+      VM_SERVICE: ${{ secrets.VM_SERVICE }}
+      VM_VENV_PY: ${{ secrets.VM_VENV_PY }}
+      VM_SSH_KEY_B64: ${{ secrets.VMSSHPRIVATE_KEY_B64 || secrets.VM_SSH_PRIVATE_KEY_B64 }}
+      VM_MCP_URL: ${{ secrets.VMMCPURL || secrets.VM_MCP_URL }}
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Debug SSH Key
+      - name: Validate deployment configuration
         run: |
-          echo "Key starts with: $(echo "${{ secrets.VMSSHPRIVATE_KEY }}" | head -c 20)"
-          echo "VM_HOST: ${{ secrets.VM_HOST }}"
-          echo "VM_USER: ${{ secrets.VM_USER }}"
+          set -euo pipefail
+          echo "🔍 Validating deployment configuration..."
+
+          required_vars=(VM_HOST VM_USER VM_DEST_DIR VM_SERVICE VM_VENV_PY VM_SSH_KEY_B64 VM_MCP_URL)
+          missing=0
+          for var in "${required_vars[@]}"; do
+            if [ -z "${!var:-}" ]; then
+              echo "❌ Missing required secret/config: $var"
+              missing=1
+            fi
+          done
+
+          if [ "$missing" -ne 0 ]; then
+            echo ""
+            echo "Expected secret aliases:"
+            echo "  VM_SSH_KEY_B64 <- VMSSHPRIVATE_KEY_B64 OR VM_SSH_PRIVATE_KEY_B64"
+            echo "  VM_DEST_DIR    <- VMDEST_DIR OR VM_DEST_DIR"
+            echo "  VM_MCP_URL     <- VMMCPURL OR VM_MCP_URL"
+            exit 1
+          fi
+
+          echo "✅ Configuration validated"
+          echo "VM_HOST: $VM_HOST"
+          echo "VM_USER: $VM_USER"
+          echo "VM_DEST_DIR: $VM_DEST_DIR"
+          echo "VM_SERVICE: $VM_SERVICE"
 
       - name: Setup SSH
         run: |
+          set -euo pipefail
           echo "🔐 Setting up SSH connection..."
+
           mkdir -p ~/.ssh
-          echo "${{ secrets.VMSSHPRIVATE_KEY_B64 }}" | base64 -d > ~/.ssh/deploy_key
+          echo "$VM_SSH_KEY_B64" | base64 -d > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          
-          # Add VM host to known_hosts
-          ssh-keyscan -H ${{ secrets.VM_HOST }} >> ~/.ssh/known_hosts
-          
-          # Test SSH connection
+
+          ssh-keyscan -H "$VM_HOST" >> ~/.ssh/known_hosts
+
           ssh -i ~/.ssh/deploy_key -o ConnectTimeout=10 \
-            ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }} \
+            "$VM_USER@$VM_HOST" \
             "echo '✅ SSH connection successful'"
 
-      - name: Debug Rsync Variables
-        if: ${{ !inputs.restart_only }}
+      - name: Debug rsync variables
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.restart_only == false }}
         run: |
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo "🔍 RSYNC CONFIGURATION"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "VM_USER is set: ${{ secrets.VM_USER != '' }}"
-          echo "VM_HOST is set: ${{ secrets.VM_HOST != '' }}"
-          echo "VMDEST_DIR is set: ${{ secrets.VMDEST_DIR != '' }}"
+          echo "VM_USER is set: $([ -n "$VM_USER" ] && echo true || echo false)"
+          echo "VM_HOST is set: $([ -n "$VM_HOST" ] && echo true || echo false)"
+          echo "VM_DEST_DIR is set: $([ -n "$VM_DEST_DIR" ] && echo true || echo false)"
           echo ""
-          echo "Full rsync target: ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }}:${{ secrets.VMDEST_DIR }}/"
+          echo "Full rsync target: $VM_USER@$VM_HOST:$VM_DEST_DIR/"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
       - name: Verify remote directory
-        if: ${{ !inputs.restart_only }}
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.restart_only == false }}
         run: |
           echo "🔍 Verifying remote directory structure..."
-          
-          ssh -i ~/.ssh/deploy_key \
-            ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }} \
+
+          ssh -i ~/.ssh/deploy_key "$VM_USER@$VM_HOST" \
             "echo 'Current user: \$(whoami)'; \
              echo 'Home directory: \$HOME'; \
-             echo 'Target directory: ${{ secrets.VMDEST_DIR }}'; \
+             echo 'Target directory: $VM_DEST_DIR'; \
              echo ''; \
-             if [ -d '${{ secrets.VMDEST_DIR }}' ]; then \
+             if [ -d '$VM_DEST_DIR' ]; then \
                echo '✅ Directory exists'; \
-               ls -la '${{ secrets.VMDEST_DIR }}' | head -n 10; \
+               ls -la '$VM_DEST_DIR' | head -n 10; \
              else \
                echo '⚠️  Directory does not exist, creating...'; \
-               mkdir -p '${{ secrets.VMDEST_DIR }}' && echo '✅ Directory created' || echo '❌ Failed to create directory'; \
+               mkdir -p '$VM_DEST_DIR' && echo '✅ Directory created' || echo '❌ Failed to create directory'; \
              fi"
 
       - name: Sync code to VM
-        if: ${{ !inputs.restart_only }}
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.restart_only == false }}
         run: |
+          set -euo pipefail
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo "📦 Starting rsync deployment..."
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo "Source: vm_server/"
-          echo "Target: ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }}:${{ secrets.VMDEST_DIR }}/"
+          echo "Target: $VM_USER@$VM_HOST:$VM_DEST_DIR/"
           echo ""
-          
+
           rsync -avz --progress \
-            --exclude='venv/' \
-            --exclude='__pycache__/' \
-            --exclude='*.pyc' \
-            --exclude='*.bak*' \
-            --exclude='*~' \
-            --exclude='.env' \
-            --exclude='memory/' \
-            --exclude='.git/' \
+            --exclude="venv/" \
+            --exclude="__pycache__/" \
+            --exclude="*.pyc" \
+            --exclude="*.bak*" \
+            --exclude="*~" \
+            --exclude=".env" \
+            --exclude="memory/" \
+            --exclude=".git/" \
             -e "ssh -i ~/.ssh/deploy_key" \
-            vm_server/ ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }}:${{ secrets.VMDEST_DIR }}/
-          
-          rsync_exit_code=$?
+            vm_server/ "$VM_USER@$VM_HOST:$VM_DEST_DIR/"
+
           echo ""
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          if [ $rsync_exit_code -eq 0 ]; then
-            echo "✅ Rsync completed successfully"
-          else
-            echo "❌ Rsync failed with exit code: $rsync_exit_code"
-            exit $rsync_exit_code
-          fi
+          echo "✅ Rsync completed successfully"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
       - name: Install dependencies
-        if: ${{ !inputs.restart_only }}
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.restart_only == false }}
         run: |
           echo "📚 Installing Python dependencies..."
-          
-          ssh -i ~/.ssh/deploy_key \
-            ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }} \
-            "if [ -f '${{ secrets.VMDEST_DIR }}/requirements.txt' ]; then \
+
+          ssh -i ~/.ssh/deploy_key "$VM_USER@$VM_HOST" \
+            "if [ -f '$VM_DEST_DIR/requirements.txt' ]; then \
               echo 'Found requirements.txt, installing dependencies...'; \
-              ${{ secrets.VM_VENV_PY }} -m pip install --upgrade pip && \
-              ${{ secrets.VM_VENV_PY }} -m pip install -r '${{ secrets.VMDEST_DIR }}/requirements.txt'; \
+              $VM_VENV_PY -m pip install --upgrade pip && \
+              $VM_VENV_PY -m pip install -r '$VM_DEST_DIR/requirements.txt'; \
               echo '✅ Dependencies installed'; \
             else \
               echo '⚠️  No requirements.txt found, skipping dependency installation'; \
@@ -128,12 +159,12 @@ jobs:
 
       - name: Restart service
         run: |
-          echo "🔄 Restarting ${{ secrets.VM_SERVICE }}..."
-          
-          ssh -i ~/.ssh/deploy_key \
-            ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }} \
-            "sudo systemctl daemon-reload && sudo systemctl restart ${{ secrets.VM_SERVICE }}"
-          
+          set -euo pipefail
+          echo "🔄 Restarting $VM_SERVICE..."
+
+          ssh -i ~/.ssh/deploy_key "$VM_USER@$VM_HOST" \
+            "sudo systemctl daemon-reload && sudo systemctl restart $VM_SERVICE"
+
           echo "✅ Service restart command sent"
           echo "⏳ Waiting 5 seconds for service to initialize..."
           sleep 5
@@ -143,34 +174,33 @@ jobs:
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo "🏥 SYSTEMD SERVICE HEALTH CHECK"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          
-          ssh -i ~/.ssh/deploy_key \
-            ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }} \
-            'set -e; \
-             echo "Checking service status..."; \
-             if sudo systemctl is-active --quiet ${{ secrets.VM_SERVICE }}; then \
-               echo "✅ Service is active and running"; \
+
+          ssh -i ~/.ssh/deploy_key "$VM_USER@$VM_HOST" \
+            "set -e; \
+             echo 'Checking service status...'; \
+             if sudo systemctl is-active --quiet $VM_SERVICE; then \
+               echo '✅ Service is active and running'; \
              else \
-               echo "❌ Service is not active"; \
-               echo ""; \
-               echo "Service status:"; \
-               sudo systemctl status ${{ secrets.VM_SERVICE }} --no-pager || true; \
+               echo '❌ Service is not active'; \
+               echo ''; \
+               echo 'Service status:'; \
+               sudo systemctl status $VM_SERVICE --no-pager || true; \
                exit 1; \
              fi; \
-             echo ""; \
-             echo "Service details:"; \
-             echo "  State: $(sudo systemctl show -p ActiveState ${{ secrets.VM_SERVICE }} --value)"; \
-             echo "  Sub-state: $(sudo systemctl show -p SubState ${{ secrets.VM_SERVICE }} --value)"; \
-             echo "  Load state: $(sudo systemctl show -p LoadState ${{ secrets.VM_SERVICE }} --value)"; \
-             echo "  Enabled: $(sudo systemctl is-enabled ${{ secrets.VM_SERVICE }} || echo disabled)"; \
-             echo ""; \
-             exit_status=$(sudo systemctl show -p ExecMainStatus ${{ secrets.VM_SERVICE }} --value); \
-             if [ "$exit_status" = "0" ]; then \
-               echo "✅ Service exit status: 0 (healthy)"; \
+             echo ''; \
+             echo 'Service details:'; \
+             echo '  State: '\"\$(sudo systemctl show -p ActiveState $VM_SERVICE --value)\"; \
+             echo '  Sub-state: '\"\$(sudo systemctl show -p SubState $VM_SERVICE --value)\"; \
+             echo '  Load state: '\"\$(sudo systemctl show -p LoadState $VM_SERVICE --value)\"; \
+             echo '  Enabled: '\"\$(sudo systemctl is-enabled $VM_SERVICE || echo disabled)\"; \
+             echo ''; \
+             exit_status=\$(sudo systemctl show -p ExecMainStatus $VM_SERVICE --value); \
+             if [ \"\$exit_status\" = '0' ]; then \
+               echo '✅ Service exit status: 0 (healthy)'; \
              else \
-               echo "⚠️  Service exit status: $exit_status"; \
-             fi'
-          
+               echo \"⚠️  Service exit status: \$exit_status\"; \
+             fi"
+
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
       - name: Verify port and process
@@ -178,98 +208,87 @@ jobs:
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo "🔍 PORT AND PROCESS VERIFICATION"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          
-          ssh -i ~/.ssh/deploy_key \
-            ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }} \
-            'SERVICE_NAME="${{ secrets.VM_SERVICE }}"; \
-             EXPECTED_PORT=$(sudo systemctl show -p Environment "$SERVICE_NAME" --value | tr " " "\n" | grep "^PORT=" | tail -n1 | cut -d= -f2); \
-             if [ -z "$EXPECTED_PORT" ]; then EXPECTED_PORT=8000; fi; \
-             echo "Expected app port (from systemd env or default): $EXPECTED_PORT"; \
-             echo ""; \
+
+          ssh -i ~/.ssh/deploy_key "$VM_USER@$VM_HOST" \
+            "SERVICE_NAME='$VM_SERVICE'; \
+             EXPECTED_PORT=\$(sudo systemctl show -p Environment \"\$SERVICE_NAME\" --value | tr ' ' '\n' | grep '^PORT=' | tail -n1 | cut -d= -f2); \
+             if [ -z \"\$EXPECTED_PORT\" ]; then EXPECTED_PORT=8000; fi; \
+             echo \"Expected app port (from systemd env or default): \$EXPECTED_PORT\"; \
+             echo ''; \
              if command -v ss >/dev/null 2>&1; then \
-               echo "Using ss for socket inspection"; \
-               if sudo ss -ltnp | grep -q ":$EXPECTED_PORT "; then \
-                 echo "✅ Port $EXPECTED_PORT is listening"; \
-                 echo ""; \
-                 echo "Process details:"; \
-                 sudo ss -ltnp | grep ":$EXPECTED_PORT "; \
+               echo 'Using ss for socket inspection'; \
+               if sudo ss -ltnp | grep -q \":\$EXPECTED_PORT \"; then \
+                 echo \"✅ Port \$EXPECTED_PORT is listening\"; \
+                 echo ''; \
+                 echo 'Process details:'; \
+                 sudo ss -ltnp | grep \":\$EXPECTED_PORT \"; \
                else \
-                 echo "⚠️  Port $EXPECTED_PORT is not listening"; \
-                 echo "This may still be valid if the service is behind a reverse proxy or Unix socket."; \
-                 echo ""; \
-                 echo "Top listening sockets:"; \
+                 echo \"⚠️  Port \$EXPECTED_PORT is not listening\"; \
+                 echo 'This may still be valid if the service is behind a reverse proxy or Unix socket.'; \
+                 echo ''; \
+                 echo 'Top listening sockets:'; \
                  sudo ss -ltnp | head -n 20; \
                fi; \
              elif command -v netstat >/dev/null 2>&1; then \
-               echo "Using netstat for socket inspection"; \
-               if sudo netstat -tlnp | grep -q ":$EXPECTED_PORT.*LISTEN"; then \
-                 echo "✅ Port $EXPECTED_PORT is listening"; \
-                 echo ""; \
-                 echo "Process details:"; \
-                 sudo netstat -tlnp | grep ":$EXPECTED_PORT.*LISTEN"; \
+               echo 'Using netstat for socket inspection'; \
+               if sudo netstat -tlnp | grep -q \":\$EXPECTED_PORT.*LISTEN\"; then \
+                 echo \"✅ Port \$EXPECTED_PORT is listening\"; \
+                 echo ''; \
+                 echo 'Process details:'; \
+                 sudo netstat -tlnp | grep \":\$EXPECTED_PORT.*LISTEN\"; \
                else \
-                 echo "⚠️  Port $EXPECTED_PORT is not listening"; \
-                 echo "This may still be valid if the service is behind a reverse proxy or Unix socket."; \
-                 echo ""; \
-                 echo "Top listening ports:"; \
+                 echo \"⚠️  Port \$EXPECTED_PORT is not listening\"; \
+                 echo 'This may still be valid if the service is behind a reverse proxy or Unix socket.'; \
+                 echo ''; \
+                 echo 'Top listening ports:'; \
                  sudo netstat -tlnp | grep LISTEN | head -n 20; \
                fi; \
              else \
-               echo "⚠️  Neither ss nor netstat is installed on the VM."; \
+               echo '⚠️  Neither ss nor netstat is installed on the VM.'; \
              fi; \
-             echo ""; \
-             echo "Python processes:"; \
-             ps aux | grep -E "(python|uvicorn|fastmcp)" | grep -v grep || echo "No Python processes found"; \
-             echo ""; \
+             echo ''; \
+             echo 'Python processes:'; \
+             ps aux | grep -E '(python|uvicorn|fastmcp)' | grep -v grep || echo 'No Python processes found'; \
+             echo ''; \
              if command -v lsof >/dev/null 2>&1; then \
-               echo "Processes using expected port $EXPECTED_PORT:"; \
-               sudo lsof -i :"$EXPECTED_PORT" || echo "No processes found on port $EXPECTED_PORT"; \
+               echo \"Processes using expected port \$EXPECTED_PORT:\"; \
+               sudo lsof -i :\"\$EXPECTED_PORT\" || echo \"No processes found on port \$EXPECTED_PORT\"; \
              else \
-               echo "lsof is not installed; skipping lsof output."; \
-             fi'
-          
+               echo 'lsof is not installed; skipping lsof output.'; \
+             fi"
+
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
       - name: MCP protocol validation
         run: |
+          set -euo pipefail
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo "🧪 MCP PROTOCOL VALIDATION"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo "Testing actual MCP functionality..."
           echo ""
-          
-          MCP_URL="${{ secrets.VMMCPURL }}"
-          
-          # Validate URL is set
-          if [ -z "$MCP_URL" ]; then
-            echo "❌ VMMCPURL secret is not set"
-            exit 1
-          fi
-          
-          # Remove trailing slashes
-          MCP_URL=$(echo "$MCP_URL" | sed 's:/*$::')
-          
+
+          MCP_URL="$VM_MCP_URL"
+          MCP_URL=$(echo "$MCP_URL" | sed "s:/*$::")
           echo "MCP Server URL: $MCP_URL"
           echo ""
           echo "Sending MCP tools/list request..."
           echo ""
-          
+
           max_attempts=10
           attempt=0
           success=false
-          
+
           while [ $attempt -lt $max_attempts ]; do
             attempt=$((attempt + 1))
             echo "Attempt $attempt/$max_attempts..."
-            
-            # Send MCP JSON-RPC request to list tools
+
             response=$(curl -sS -w "\nHTTP_STATUS:%{http_code}\n" \
               -X POST "$MCP_URL" \
               -H "Content-Type: application/json" \
               -H "Accept: application/json, text/event-stream" \
               -d '{"jsonrpc":"2.0","method":"tools/list","id":1}' 2>&1 || echo "CURL_FAILED")
-            
-            # Check if curl failed
+
             if echo "$response" | grep -q "CURL_FAILED"; then
               echo "❌ Curl request failed"
               if [ $attempt -lt $max_attempts ]; then
@@ -278,73 +297,48 @@ jobs:
               fi
               continue
             fi
-            
-            # Extract status code
-            status=$(echo "$response" | grep "HTTP_STATUS:" | tail -n1 | sed 's/HTTP_STATUS://')
-            body=$(echo "$response" | sed '/HTTP_STATUS:/d')
-            
+
+            status=$(echo "$response" | grep "HTTP_STATUS:" | tail -n1 | sed "s/HTTP_STATUS://")
+            body=$(echo "$response" | sed "/HTTP_STATUS:/d")
+
             echo "HTTP Status: $status"
-            
-            # Check for successful HTTP response
+
             if [[ "$status" == 2* ]]; then
               echo "✅ Received HTTP $status response"
               echo ""
               echo "Response body:"
               echo "$body" | head -n 10
               echo ""
-              
-              # Validate it's a valid MCP response
-              if echo "$body" | grep -q '"jsonrpc".*"2.0"'; then
-                echo "✅ Valid JSON-RPC response detected"
-                
-                if echo "$body" | grep -q '"result"'; then
-                  echo "✅ MCP server returned result (success)"
-                  
-                  # Check if tools are present
-                  if echo "$body" | grep -q '"tools"'; then
-                    tool_count=$(echo "$body" | grep -o '"name"' | wc -l)
-                    echo "✅ MCP tools registered: $tool_count tools found"
-                    echo ""
-                    echo "Sample tools:"
-                    echo "$body" | grep -o '"name":"[^"]*"' | head -5 | sed 's/"name"://g'
-                  fi
-                  
-                  success=true
-                  break
-                elif echo "$body" | grep -q '"error"'; then
-                  echo "⚠️  MCP server returned error:"
-                  echo "$body" | grep -o '"error":{[^}]*}' || echo "$body"
-                fi
-              else
-                echo "⚠️  Response is not valid JSON-RPC format"
-                echo "This may indicate the server is not properly handling MCP protocol"
+
+              if echo "$body" | grep -q '"jsonrpc".*"2.0"' && echo "$body" | grep -q '"result"'; then
+                echo "✅ Valid JSON-RPC result received"
+                success=true
+                break
               fi
             else
               echo "⚠️  Server returned HTTP $status"
             fi
-            
+
             if [ $attempt -lt $max_attempts ]; then
               echo ""
               echo "Retrying in 3 seconds..."
               sleep 3
             fi
           done
-          
+
           if [ "$success" = false ]; then
             echo ""
             echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
             echo "❌ MCP PROTOCOL VALIDATION FAILED"
             echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            echo ""
-            echo "The MCP server is not responding to protocol requests."
-            echo ""
+            echo "The MCP server is not responding correctly to tools/list."
             echo "Troubleshooting:"
-            echo "1. Check service logs: sudo journalctl -u ${{ secrets.VM_SERVICE }} -n 50"
+            echo "1. Check service logs: sudo journalctl -u $VM_SERVICE -n 50"
             echo "2. Verify MCP URL is correct: $MCP_URL"
-            echo "3. Test manually: curl -X POST $MCP_URL -H 'Content-Type: application/json' -d '{\"jsonrpc\":\"2.0\",\"method\":\"tools/list\",\"id\":1}'"
+            echo "3. Test manually with tools/list request"
             exit 1
           fi
-          
+
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
       - name: Service logs (recent)
@@ -353,11 +347,10 @@ jobs:
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo "📋 SERVICE LOGS (Last 30 lines)"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          
-          ssh -i ~/.ssh/deploy_key \
-            ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }} \
-            "sudo journalctl -u ${{ secrets.VM_SERVICE }} -n 30 --no-pager || true"
-          
+
+          ssh -i ~/.ssh/deploy_key "$VM_USER@$VM_HOST" \
+            "sudo journalctl -u $VM_SERVICE -n 30 --no-pager || true"
+
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
       - name: Cleanup SSH keys
@@ -373,15 +366,14 @@ jobs:
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo "🎉 DEPLOYMENT COMPLETED SUCCESSFULLY"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "📍 Target: ${{ secrets.VM_HOST }}"
-          echo "📂 Directory: ${{ secrets.VMDEST_DIR }}"
-          echo "🔧 Service: ${{ secrets.VM_SERVICE }}"
-          echo "🌐 MCP URL: ${{ secrets.VMMCPURL }}"
+          echo "📍 Target: $VM_HOST"
+          echo "📂 Directory: $VM_DEST_DIR"
+          echo "🔧 Service: $VM_SERVICE"
+          echo "🌐 MCP URL: $VM_MCP_URL"
           echo ""
           echo "✅ Code synced to VM"
           echo "✅ Dependencies installed"
           echo "✅ Service restarted and active"
-          echo "✅ Port 8000 listening"
           echo "✅ MCP protocol validated"
           echo "✅ Tools registered and accessible"
           echo ""
@@ -394,18 +386,11 @@ jobs:
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo "❌ DEPLOYMENT FAILED"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo ""
           echo "Check the logs above for details."
           echo ""
-          echo "Common issues:"
-          echo "• Service not starting: Check service logs"
-          echo "• Port not listening: Verify no port conflicts"
-          echo "• MCP validation failing: Check server.py syntax"
-          echo "• Dependencies missing: Review requirements.txt"
-          echo ""
           echo "Manual debugging:"
-          echo "  ssh ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }}"
-          echo "  sudo systemctl status ${{ secrets.VM_SERVICE }}"
-          echo "  sudo journalctl -u ${{ secrets.VM_SERVICE }} -n 50"
+          echo "  ssh $VM_USER@$VM_HOST"
+          echo "  sudo systemctl status $VM_SERVICE"
+          echo "  sudo journalctl -u $VM_SERVICE -n 50"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           exit 1
