@@ -67,5 +67,6 @@ curl -sS https://mcp-lina.duckdns.org/mcp \
 ```
 
 ## Health check
-- Primary: `GET /health` (returns `{"ok": true}`).
+- Primary: MCP JSON-RPC via `/mcp` (for example `tools/list`).
+- Optional: `GET /health` only if provided by your reverse proxy/infrastructure.
 - Fallback: call the `health_check` tool via `/mcp`.

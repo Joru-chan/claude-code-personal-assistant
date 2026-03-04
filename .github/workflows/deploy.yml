@@ -181,25 +181,52 @@ jobs:
           
           ssh -i ~/.ssh/deploy_key \
             ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }} \
-            'echo "Checking if port 8000 is listening..."; \
-             if sudo netstat -tlnp | grep -q ":8000.*LISTEN"; then \
-               echo "✅ Port 8000 is listening"; \
-               echo ""; \
-               echo "Process details:"; \
-               sudo netstat -tlnp | grep ":8000.*LISTEN"; \
+            'SERVICE_NAME="${{ secrets.VM_SERVICE }}"; \
+             EXPECTED_PORT=$(sudo systemctl show -p Environment "$SERVICE_NAME" --value | tr " " "\n" | grep "^PORT=" | tail -n1 | cut -d= -f2); \
+             if [ -z "$EXPECTED_PORT" ]; then EXPECTED_PORT=8000; fi; \
+             echo "Expected app port (from systemd env or default): $EXPECTED_PORT"; \
+             echo ""; \
+             if command -v ss >/dev/null 2>&1; then \
+               echo "Using ss for socket inspection"; \
+               if sudo ss -ltnp | grep -q ":$EXPECTED_PORT "; then \
+                 echo "✅ Port $EXPECTED_PORT is listening"; \
+                 echo ""; \
+                 echo "Process details:"; \
+                 sudo ss -ltnp | grep ":$EXPECTED_PORT "; \
+               else \
+                 echo "⚠️  Port $EXPECTED_PORT is not listening"; \
+                 echo "This may still be valid if the service is behind a reverse proxy or Unix socket."; \
+                 echo ""; \
+                 echo "Top listening sockets:"; \
+                 sudo ss -ltnp | head -n 20; \
+               fi; \
+             elif command -v netstat >/dev/null 2>&1; then \
+               echo "Using netstat for socket inspection"; \
+               if sudo netstat -tlnp | grep -q ":$EXPECTED_PORT.*LISTEN"; then \
+                 echo "✅ Port $EXPECTED_PORT is listening"; \
+                 echo ""; \
+                 echo "Process details:"; \
+                 sudo netstat -tlnp | grep ":$EXPECTED_PORT.*LISTEN"; \
+               else \
+                 echo "⚠️  Port $EXPECTED_PORT is not listening"; \
+                 echo "This may still be valid if the service is behind a reverse proxy or Unix socket."; \
+                 echo ""; \
+                 echo "Top listening ports:"; \
+                 sudo netstat -tlnp | grep LISTEN | head -n 20; \
+               fi; \
              else \
-               echo "❌ Port 8000 is not listening"; \
-               echo ""; \
-               echo "All listening ports:"; \
-               sudo netstat -tlnp | grep LISTEN | head -10; \
-               exit 1; \
+               echo "⚠️  Neither ss nor netstat is installed on the VM."; \
              fi; \
              echo ""; \
              echo "Python processes:"; \
-             ps aux | grep -E "(python|uvicorn)" | grep -v grep || echo "No Python processes found"; \
+             ps aux | grep -E "(python|uvicorn|fastmcp)" | grep -v grep || echo "No Python processes found"; \
              echo ""; \
-             echo "Processes using port 8000:"; \
-             sudo lsof -i :8000 || echo "No processes found on port 8000"'
+             if command -v lsof >/dev/null 2>&1; then \
+               echo "Processes using expected port $EXPECTED_PORT:"; \
+               sudo lsof -i :"$EXPECTED_PORT" || echo "No processes found on port $EXPECTED_PORT"; \
+             else \
+               echo "lsof is not installed; skipping lsof output."; \
+             fi'
           
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
@@ -239,6 +266,7 @@ jobs:
             response=$(curl -sS -w "\nHTTP_STATUS:%{http_code}\n" \
               -X POST "$MCP_URL" \
               -H "Content-Type: application/json" \
+              -H "Accept: application/json, text/event-stream" \
               -d '{"jsonrpc":"2.0","method":"tools/list","id":1}' 2>&1 || echo "CURL_FAILED")
             
             # Check if curl failed

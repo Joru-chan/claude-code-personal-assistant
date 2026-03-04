@@ -9,7 +9,10 @@ Usage:
     python test_server.py
     
 Then test with:
-    curl http://localhost:8000/health
+    curl -X POST http://localhost:8000/mcp \
+      -H "Content-Type: application/json" \
+      -H "Accept: application/json, text/event-stream" \
+      -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
     curl http://localhost:8000/mcp
     curl http://localhost:8000/
 """
@@ -72,22 +75,26 @@ def main():
     # Create the MCP server
     mcp_server = create_test_server()
     
-    # Create the ASGI application
-    # The path="/mcp" means MCP endpoints will be at /mcp
-    # This creates the HTTP interface for the MCP server
-    app = mcp_server.http_app(path="/mcp")
+    # Create the ASGI application in stateless HTTP mode so CI can
+    # validate the MCP protocol with a single JSON-RPC request.
+    app = mcp_server.http_app(path="/mcp", stateless_http=True)
+
+    port = int(os.getenv("PORT", "8000"))
     
     # Print debug information
     print(f"Server will be available at:")
-    print(f"  Main endpoint: http://localhost:8000/mcp")  
-    print(f"  Health check: http://localhost:8000/health")
+    print(f"  MCP endpoint: http://localhost:{port}/mcp")
     print()
     print("Test commands:")
-    print(f"  curl http://localhost:8000/health")
-    print(f"  curl http://localhost:8000/mcp") 
+    print(
+        f'  curl -X POST http://localhost:{port}/mcp '
+        '-H "Content-Type: application/json" '
+        '-H "Accept: application/json, text/event-stream" '
+        '-d \'{"jsonrpc":"2.0","id":1,"method":"tools/list"}\''
+    )
+    print(f"  curl http://localhost:{port}/mcp")
     print()
-    print("If you see 404 errors, this indicates the ASGI integration issue.")
-    print("If you see proper responses, the server is working correctly.")
+    print("If tools/list returns 200, the MCP transport is working correctly.")
     print("=" * 50)
     
     # Start the server
@@ -96,7 +103,7 @@ def main():
     uvicorn.run(
         app,
         host="0.0.0.0", 
-        port=8000,
+        port=port,
         log_level="debug",
         access_log=True  # Log all requests for debugging
     )
