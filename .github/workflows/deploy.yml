@@ -318,8 +318,16 @@ jobs:
                 success=true
                 break
               fi
+            elif [ "$status" = "400" ] && echo "$body" | grep -q '"jsonrpc".*"2.0"' && echo "$body" | grep -qi "missing session id"; then
+              echo "✅ MCP endpoint is reachable (session-based mode detected)."
+              echo "Received expected session-required response:"
+              echo "$body" | head -n 10
+              success=true
+              break
             else
               echo "⚠️  Server returned HTTP $status"
+              echo "Response preview:"
+              echo "$body" | head -n 10
             fi
 
             if [ $attempt -lt $max_attempts ]; then
