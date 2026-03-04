@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-02-19T14:47:34.136Z",
+  "updatedAt": "2026-03-04T21:38:30.864Z",
   "createdAt": "2025-11-26T20:07:53.471Z",
   "id": "zLCh0lRnAL0i66ix",
   "name": "Daily MCP Capability Update to Poke",
@@ -83,7 +83,7 @@
   "pinData": {},
   "versionId": "f6690103-e2e0-4780-91a2-a2f22f30c062",
   "activeVersionId": "f6690103-e2e0-4780-91a2-a2f22f30c062",
-  "versionCounter": 16,
+  "versionCounter": 31,
   "triggerCount": 1,
   "shared": [
     {
@@ -207,6 +207,54 @@
         "userId": "319eaa7a-83a0-4f1d-ba6e-595ef2af39b3"
       },
       {
+        "createdAt": "2026-02-19T18:37:29.576Z",
+        "id": 121,
+        "workflowId": "zLCh0lRnAL0i66ix",
+        "versionId": "f6690103-e2e0-4780-91a2-a2f22f30c062",
+        "event": "activated",
+        "userId": "319eaa7a-83a0-4f1d-ba6e-595ef2af39b3"
+      },
+      {
+        "createdAt": "2026-02-19T18:37:31.581Z",
+        "id": 123,
+        "workflowId": "zLCh0lRnAL0i66ix",
+        "versionId": "f6690103-e2e0-4780-91a2-a2f22f30c062",
+        "event": "activated",
+        "userId": "319eaa7a-83a0-4f1d-ba6e-595ef2af39b3"
+      },
+      {
+        "createdAt": "2026-02-19T19:20:15.295Z",
+        "id": 149,
+        "workflowId": "zLCh0lRnAL0i66ix",
+        "versionId": "f6690103-e2e0-4780-91a2-a2f22f30c062",
+        "event": "activated",
+        "userId": "319eaa7a-83a0-4f1d-ba6e-595ef2af39b3"
+      },
+      {
+        "createdAt": "2026-02-19T19:20:15.853Z",
+        "id": 151,
+        "workflowId": "zLCh0lRnAL0i66ix",
+        "versionId": "f6690103-e2e0-4780-91a2-a2f22f30c062",
+        "event": "activated",
+        "userId": "319eaa7a-83a0-4f1d-ba6e-595ef2af39b3"
+      },
+      {
+        "createdAt": "2026-03-04T21:38:31.159Z",
+        "id": 182,
+        "workflowId": "zLCh0lRnAL0i66ix",
+        "versionId": "f6690103-e2e0-4780-91a2-a2f22f30c062",
+        "event": "activated",
+        "userId": "319eaa7a-83a0-4f1d-ba6e-595ef2af39b3"
+      },
+      {
+        "createdAt": "2026-03-04T21:38:31.593Z",
+        "id": 184,
+        "workflowId": "zLCh0lRnAL0i66ix",
+        "versionId": "f6690103-e2e0-4780-91a2-a2f22f30c062",
+        "event": "activated",
+        "userId": "319eaa7a-83a0-4f1d-ba6e-595ef2af39b3"
+      },
+      {
         "createdAt": "2026-02-19T14:47:34.250Z",
         "id": 50,
         "workflowId": "zLCh0lRnAL0i66ix",
@@ -217,6 +265,54 @@
       {
         "createdAt": "2026-02-19T14:47:34.747Z",
         "id": 52,
+        "workflowId": "zLCh0lRnAL0i66ix",
+        "versionId": "f6690103-e2e0-4780-91a2-a2f22f30c062",
+        "event": "deactivated",
+        "userId": "319eaa7a-83a0-4f1d-ba6e-595ef2af39b3"
+      },
+      {
+        "createdAt": "2026-02-19T18:37:29.542Z",
+        "id": 120,
+        "workflowId": "zLCh0lRnAL0i66ix",
+        "versionId": "f6690103-e2e0-4780-91a2-a2f22f30c062",
+        "event": "deactivated",
+        "userId": "319eaa7a-83a0-4f1d-ba6e-595ef2af39b3"
+      },
+      {
+        "createdAt": "2026-02-19T18:37:31.543Z",
+        "id": 122,
+        "workflowId": "zLCh0lRnAL0i66ix",
+        "versionId": "f6690103-e2e0-4780-91a2-a2f22f30c062",
+        "event": "deactivated",
+        "userId": "319eaa7a-83a0-4f1d-ba6e-595ef2af39b3"
+      },
+      {
+        "createdAt": "2026-02-19T19:20:15.269Z",
+        "id": 148,
+        "workflowId": "zLCh0lRnAL0i66ix",
+        "versionId": "f6690103-e2e0-4780-91a2-a2f22f30c062",
+        "event": "deactivated",
+        "userId": "319eaa7a-83a0-4f1d-ba6e-595ef2af39b3"
+      },
+      {
+        "createdAt": "2026-02-19T19:20:15.772Z",
+        "id": 150,
+        "workflowId": "zLCh0lRnAL0i66ix",
+        "versionId": "f6690103-e2e0-4780-91a2-a2f22f30c062",
+        "event": "deactivated",
+        "userId": "319eaa7a-83a0-4f1d-ba6e-595ef2af39b3"
+      },
+      {
+        "createdAt": "2026-03-04T21:38:30.980Z",
+        "id": 181,
+        "workflowId": "zLCh0lRnAL0i66ix",
+        "versionId": "f6690103-e2e0-4780-91a2-a2f22f30c062",
+        "event": "deactivated",
+        "userId": "319eaa7a-83a0-4f1d-ba6e-595ef2af39b3"
+      },
+      {
+        "createdAt": "2026-03-04T21:38:31.547Z",
+        "id": 183,
         "workflowId": "zLCh0lRnAL0i66ix",
         "versionId": "f6690103-e2e0-4780-91a2-a2f22f30c062",
         "event": "deactivated",
