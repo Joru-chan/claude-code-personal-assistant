@@ -1,300 +1,288 @@
-# Deployment Health Check Fix - Configuration Guide
+# Deployment Fix Documentation
 
 ## Overview
 
-This document explains the deployment health check fixes and how they work with your existing configuration.
+This document explains the deployment issues that were affecting the MCP server and the solutions implemented to resolve them.
 
-## What Was Fixed
+## The Problem
 
-### 1. Health Endpoint Registration (server.py)
+### Original Issue: FastMCP Health Endpoint
 
-**Before:**
+The deployment workflow required an HTTP `/health` endpoint to verify the server was running. However, FastMCP's `http_app()` method returns a Starlette application that doesn't easily support adding custom routes or endpoints.
+
+**Multiple attempts were made:**
+
+1. **FastAPI decorators** (`@app.get()`) - Failed with `AttributeError: 'StarletteWithLifespan' object has no attribute 'get'`
+2. **Starlette `add_route()`** - Didn't work properly, still returned 404
+3. **Starlette `Route` objects** - Still resulted in 404 Not Found
+4. **Custom ASGI middleware** - Variable scope issues and complexity
+
+### The "Nuclear Option" Debug Mode
+
+To diagnose the issue, a debug mode was implemented that responded to **all HTTP requests** with a 200 OK response and debug information. This was useful for troubleshooting but had a critical flaw:
+
+**It completely disabled the MCP server functionality.**
+
+The debug stub replaced the entire FastMCP application:
+
 ```python
-app = mcp.http_app(stateless_http=True)
+# DEBUG MODE (OLD - BROKEN)
+async def respond_to_everything(scope, receive, send):
+    # Returns debug info for any request
+    response = JSONResponse({"ok": True, "debug": {...}})
+    await response(scope, receive, send)
 
-def _register_health_route(server: FastMCP) -> bool:
-    app = getattr(server, "app", None)  # ❌ Returns None - app never attached to server
-    if app is None:
-        return False
-    # This code never runs!
+app = respond_to_everything  # ← MCP server disabled!
 ```
 
-**After:**
-```python
-app = mcp.http_app(stateless_http=True)
+**Impact:**
+- ✅ HTTP requests returned 200 OK (deployment appeared successful)
+- ✅ Service was running (systemd showed active)
+- ❌ **MCP functionality was completely broken**
+- ❌ **All tools (Notion, weather, receipts, etc.) were inaccessible**
 
-@app.get("/health")
-async def health() -> dict:
-    """Health check endpoint for monitoring."""
-    return {"ok": True, "status": "healthy"}
+## The Solution
+
+### 1. Restore Production MCP Server
+
+**File:** `vm_server/server.py`
+
+Reverted from debug mode to the actual production FastMCP server:
+
+```python
+# PRODUCTION MODE (NEW - WORKING)
+from fastmcp import FastMCP
+from tools.registry import register_tools
+
+mcp = FastMCP("Lina Serendipity MCP Server")
+app = mcp.http_app(stateless_http=True)
+register_tools(mcp)  # ← Tools are now registered and functional
 ```
 
-### 2. Workflow Health Check Logic (deploy.yml)
+**Result:** MCP server is fully operational with all tools working.
 
-**Before:**
-- Tried to call non-existent MCP tool `health_check` via JSON-RPC
-- No URL validation
-- Poor error messages
+### 2. Systemd-Based Health Checks
 
-**After:**
-- Direct HTTP GET request to `/health` endpoint
-- URL validation before making requests
-- Constructs health URL from existing `VMMCPURL` secret
-- Clear error messages with troubleshooting steps
+**File:** `.github/workflows/deploy.yml`
 
-## How It Works
-
-### URL Construction
-
-The workflow now automatically constructs the health check URL from your existing `VMMCPURL` secret:
-
-1. Takes the `VMMCPURL` value (e.g., `http://192.168.1.100:8000`)
-2. Removes any trailing slashes
-3. Appends `/health` to create the health check URL
-4. Validates the URL format before use
-
-**Example:**
-- `VMMCPURL` = `http://192.168.1.100:8000` → Health URL = `http://192.168.1.100:8000/health`
-- `VMMCPURL` = `http://192.168.1.100:8000/` → Health URL = `http://192.168.1.100:8000/health`
-- `VMMCPURL` = `https://mcp.example.com` → Health URL = `https://mcp.example.com/health`
-
-### No Configuration Changes Required
-
-✅ **You don't need to update any secrets!** The workflow uses your existing `VMMCPURL` configuration.
-
-## Required Secrets
-
-Your existing secrets should already be configured. For reference:
-
-- `VMMCPURL` - Your MCP server URL (e.g., `http://your-vm:8000`)
-- `VM_HOST` - Your VM hostname or IP
-- `VM_USER` - SSH username for deployment
-- `VM_SERVICE` - Systemd service name (e.g., `mcp-server`)
-- `VMDEST_DIR` - Deployment directory on VM
-- `VM_VENV_PY` - Path to Python in venv
-- `VMSSHPRIVATE_KEY_B64` - Base64-encoded SSH private key
-
-### Verify Your VMMCPURL Secret
-
-Make sure your `VMMCPURL` secret is in one of these formats:
-
-✅ `http://hostname:8000`  
-✅ `http://192.168.1.100:8000`  
-✅ `https://mcp.yourdomain.com`  
-✅ `http://hostname:8000/` (trailing slash is OK, will be removed)  
-
-❌ `hostname:8000` (missing http://)  
-❌ `192.168.1.100` (missing http:// and port)  
-
-## Testing the Fix
-
-### 1. Test Health Endpoint Locally
-
-SSH into your VM and test:
+Instead of trying to add a `/health` endpoint to FastMCP, we verify the service through systemd:
 
 ```bash
-# Check if service is running
-sudo systemctl status mcp-server  # or your service name
+# Check if service is active
+sudo systemctl is-active --quiet mcp-server.service
 
-# Test health endpoint
-curl http://localhost:8000/health
-
-# Expected response:
-# {"ok":true,"status":"healthy"}
+# Verify service details
+systemctl show -p ActiveState mcp-server.service
+systemctl show -p ExecMainStatus mcp-server.service
 ```
 
-### 2. Test from GitHub Actions
+**Benefits:**
+- ✅ No need to modify FastMCP application
+- ✅ More reliable than HTTP endpoints
+- ✅ Directly checks service health at OS level
+- ✅ Detects crashes and restarts
 
-After merging this PR, trigger a deployment:
+### 3. MCP Protocol Validation
 
-1. Push a change to `vm_server/` directory, or
-2. Manually trigger the workflow from Actions tab
+**File:** `.github/workflows/deploy.yml`
 
-The workflow should now:
-- ✅ Complete successfully
-- ✅ Show "✅ HTTP health check successful (HTTP 200)"
-- ✅ Display the constructed health URL
-- ✅ No more "URL rejected" or "HTTP 400" errors
+Tests actual MCP functionality by sending a JSON-RPC request:
+
+```bash
+curl -X POST "$MCP_URL" \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","method":"tools/list","id":1}'
+```
+
+**Validation checks:**
+1. HTTP response is 2xx
+2. Response is valid JSON-RPC format
+3. Response contains `"result"` field (not `"error"`)
+4. Tools are listed in the response
+5. Tool count is displayed
+
+**Benefits:**
+- ✅ Tests actual MCP protocol, not just HTTP connectivity
+- ✅ Verifies tools are registered and accessible
+- ✅ Ensures server is functionally working
+- ✅ Catches configuration errors early
+
+### 4. Comprehensive Verification Steps
+
+The deployment workflow now includes:
+
+1. **Service Status Check** - Systemd active state
+2. **Port Verification** - Port 8000 is listening
+3. **Process Check** - Python/uvicorn processes running
+4. **MCP Protocol Test** - JSON-RPC tools/list request
+5. **Service Logs** - Recent logs for troubleshooting
+
+## Deployment Workflow
+
+### Successful Deployment Checklist
+
+When deployment succeeds, all of these are verified:
+
+- ✅ SSH connection established
+- ✅ Code synced via rsync
+- ✅ Dependencies installed
+- ✅ Service restarted
+- ✅ Service is active (systemd)
+- ✅ Port 8000 is listening
+- ✅ MCP protocol responds correctly
+- ✅ Tools are registered
+
+### Failure Detection
+
+The workflow will fail if:
+
+- ❌ Service is not active
+- ❌ Port 8000 is not listening
+- ❌ MCP protocol returns errors
+- ❌ No tools are registered
+- ❌ Invalid JSON-RPC response
 
 ## Troubleshooting
 
-### Issue: "VMMCPURL secret is empty or not set"
+### Service Not Starting
 
-**Cause:** The secret is not configured in repository settings.
-
-**Solution:**
-```
-1. Go to: Settings → Secrets and variables → Actions
-2. Add or update VMMCPURL
-3. Set to: http://your-vm-ip:8000
-```
-
-### Issue: "Invalid URL format: [URL]"
-
-**Cause:** `VMMCPURL` doesn't start with `http://` or `https://`.
-
-**Solution:**
-- Update `VMMCPURL` to include the protocol
-- Example: Change `192.168.1.100:8000` to `http://192.168.1.100:8000`
-
-### Issue: "URL rejected: Malformed input to a URL function"
-
-**Cause:** URL contains invalid characters or formatting.
-
-**Solution:**
-- Check for spaces or special characters in VMMCPURL
-- Ensure proper URL encoding
-- Verify hostname/IP is valid
-
-### Issue: "HTTP health check failed (HTTP 000)"
-
-**Cause:** Server is not reachable or not running.
-
-**Solution:**
 ```bash
-# On your VM:
-# 1. Check service status
-sudo systemctl status mcp-server
+# Check service status
+sudo systemctl status mcp-server.service
 
-# 2. Check if port is listening
-sudo netstat -tlnp | grep :8000
+# View recent logs
+sudo journalctl -u mcp-server.service -n 50
 
-# 3. Check firewall
+# Check for Python errors
+sudo journalctl -u mcp-server.service | grep -i error
+```
+
+### Port Not Listening
+
+```bash
+# Check if something else is using port 8000
+sudo netstat -tlnp | grep 8000
+sudo lsof -i :8000
+
+# Check firewall
 sudo ufw status
-sudo ufw allow 8000/tcp  # if needed
-
-# 4. View logs
-sudo journalctl -u mcp-server -n 50 --no-pager
 ```
 
-### Issue: "Could not resolve host"
+### MCP Protocol Failing
 
-**Cause:** Hostname in VMMCPURL cannot be resolved.
-
-**Solution:**
-- Verify the hostname is correct
-- Consider using IP address instead
-- Check DNS configuration
-
-### Issue: "HTTP 404 Not Found"
-
-**Cause:** Health endpoint is not registered (old version of server.py).
-
-**Solution:**
-- Ensure you've merged this PR
-- Redeploy to update server.py
-- Restart the service
-
-### Issue: "HTTP 500 Internal Server Error"
-
-**Cause:** Application error in health endpoint.
-
-**Solution:**
 ```bash
-# Check application logs
-sudo journalctl -u mcp-server -n 50 --no-pager
+# Test manually
+curl -X POST http://localhost:8000 \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","method":"tools/list","id":1}'
 
-# Look for Python exceptions or errors
+# Check server logs for errors
+sudo journalctl -u mcp-server.service -f
 ```
 
-## Health Endpoint Details
+### Tools Not Registered
 
-### Endpoint: GET /health
+```bash
+# Verify tools directory exists
+ls -la /path/to/vm_server/tools/
 
-**URL:** `http://your-server:8000/health`
+# Check for import errors in logs
+sudo journalctl -u mcp-server.service | grep -i "import\|module"
 
-**Response (Success):**
+# Verify registry.py is working
+python3 -c "from tools.registry import register_tools; print('OK')"
+```
+
+## Testing Locally
+
+### Test the MCP Server
+
+```bash
+# Start the server
+cd vm_server
+python3 server.py
+
+# In another terminal, test MCP protocol
+curl -X POST http://localhost:8000 \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","method":"tools/list","id":1}'
+```
+
+### Expected Response
+
 ```json
 {
-  "ok": true,
-  "status": "healthy"
+  "jsonrpc": "2.0",
+  "result": {
+    "tools": [
+      {"name": "hello", "description": "..."},
+      {"name": "get_weather", "description": "..."},
+      {"name": "notion_create_page", "description": "..."}
+      // ... more tools
+    ]
+  },
+  "id": 1
 }
 ```
 
-**Status Code:** 200 OK
+## Architecture Decision
 
-**Headers:**
-- `Content-Type: application/json`
+### Why Not Add a Health Endpoint?
 
-### Usage Examples
+**Problem:** FastMCP's `http_app()` doesn't support adding custom routes easily.
 
-#### curl
-```bash
-curl http://localhost:8000/health
-```
+**Considered Options:**
 
-#### Python
-```python
-import requests
-response = requests.get("http://localhost:8000/health")
-print(response.json())
-# {'ok': True, 'status': 'healthy'}
-```
+1. **Modify FastMCP library** - Requires upstream changes, maintenance burden
+2. **Complex ASGI middleware** - Error-prone, adds complexity
+3. **Separate health server** - Additional port, extra process to manage
+4. **Reverse proxy** - Infrastructure complexity
 
-#### Monitoring Tools
+**Chosen Solution:** Systemd + MCP protocol validation
 
-You can use this endpoint with monitoring services like:
-- UptimeRobot
-- Pingdom
-- StatusCake
-- Custom monitoring scripts
+**Why this approach?**
+- ✅ No modifications to FastMCP needed
+- ✅ Tests actual functionality, not just HTTP
+- ✅ Uses standard systemd practices
+- ✅ Simple and maintainable
+- ✅ More reliable than custom endpoints
 
-Set the monitoring URL to: `http://your-vm:8000/health`
+## Future Improvements
 
-## Deployment Flow
+### Potential Enhancements
 
-After this fix, the deployment flow is:
+1. **Add health check tool** - MCP tool that returns server stats
+2. **Monitoring integration** - Send metrics to monitoring system
+3. **Automated rollback** - Revert deployment if validation fails
+4. **Canary deployments** - Test on one instance before full rollout
+5. **Integration tests** - Test actual tool invocations, not just listing
 
-1. **Code Sync** - rsync files to VM
-2. **Dependencies** - Install/update Python packages
-3. **Service Restart** - Restart systemd service
-4. **Service Status Check** - Verify service is active
-5. **URL Construction** - Build health URL from VMMCPURL
-6. **URL Validation** - Check health URL is properly formatted
-7. **Health Check** - GET request to /health endpoint (with retries)
-8. **Success** ✅ or **Failure** ❌ with detailed diagnostics
+### Upstream Contribution
 
-## What Changed vs Previous Documentation
+Consider contributing to FastMCP:
+- Add support for custom ASGI middleware
+- Provide built-in health check endpoint option
+- Document best practices for deployment
 
-**Previous version** (now outdated):
-- Required creating a new `VM_HEALTH_URL` secret
-- Two separate secrets to manage
+## References
 
-**Current version** (this fix):
-- ✅ Uses existing `VMMCPURL` secret
-- ✅ Automatically constructs health URL
-- ✅ No secret changes required
-- ✅ Simpler configuration
+- [FastMCP Documentation](https://github.com/jlowin/fastmcp)
+- [Systemd Service Management](https://www.freedesktop.org/software/systemd/man/systemctl.html)
+- [JSON-RPC 2.0 Specification](https://www.jsonrpc.org/specification)
+- [MCP Protocol Specification](https://modelcontextprotocol.io/)
 
-## Testing Checklist
+## Summary
 
-Before merging, verify:
+**Before this fix:**
+- Server in debug mode, MCP disabled
+- HTTP endpoints return 200 but server non-functional
+- Deployment succeeds but tools inaccessible
 
-- [ ] `VMMCPURL` secret exists and is properly formatted
-- [ ] `VMMCPURL` starts with `http://` or `https://`
-- [ ] Server is accessible at the URL in `VMMCPURL`
-- [ ] `/health` endpoint responds with 200 OK locally
+**After this fix:**
+- Production MCP server running
+- Systemd-based health verification
+- MCP protocol validation ensures functionality
+- All tools registered and accessible
+- Reliable deployment verification
 
-After merging:
-
-- [ ] Deployment completes successfully
-- [ ] Health check passes
-- [ ] Workflow logs show constructed health URL
-- [ ] No URL validation errors
-
-## Questions?
-
-If you encounter issues:
-
-1. Check the deployment logs in GitHub Actions
-2. Review this troubleshooting guide
-3. SSH to VM and check service status/logs
-4. Verify `VMMCPURL` secret configuration
-
----
-
-**Last Updated:** 2026-02-23  
-**PR:** #8  
-**Related Files:**
-- `vm_server/server.py`
-- `.github/workflows/deploy.yml`
+The fix solves the original problem without requiring FastMCP modifications and ensures the server is not just running, but actually functional.
