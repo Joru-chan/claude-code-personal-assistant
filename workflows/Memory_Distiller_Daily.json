@@ -1,0 +1,694 @@
+{
+  "name": "Memory Distiller Daily",
+  "description": null,
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "memory-signal",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -1072,
+        -192
+      ],
+      "id": "f5e09892-6dd5-4fe5-9a71-1bc2978584f3",
+      "name": "Webhook - Memory Signal",
+      "webhookId": "memory-signal",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "zw7qjmCFIsQxFnES",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const body = $json.body || {}\n\nconst eventText = String(body.event_text || body.text || body.message || '').trim();\nconst source = String(body.source || 'poke').trim();\nconst timestamp = body.timestamp || new Date().toISOString();\nconst tags = Array.isArray(body.tags) ? body.tags.map((t) => String(t).trim()).filter(Boolean) : [];\nconst confidence = body.confidence !== undefined ? Number(body.confidence) : 0.72;\n\nreturn {\n  event_text: eventText,\n  source,\n  timestamp,\n  tags,\n  confidence: Number.isFinite(confidence) ? Math.max(0, Math.min(1, confidence)) : 0.72,\n  raw: body\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -848,
+        -192
+      ],
+      "id": "5b7e17ea-07dc-4656-a3b7-d3541e83a43b",
+      "name": "Normalize Memory Signal"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const store = $getWorkflowStaticData('global');\nif (!Array.isArray(store.memorySignalQueue)) {\n  store.memorySignalQueue = [];\n}\n\nconst signal = {\n  event_text: $json.event_text,\n  source: $json.source,\n  timestamp: $json.timestamp,\n  tags: $json.tags || [],\n  confidence: $json.confidence ?? 0.72\n};\n\nif (signal.event_text) {\n  store.memorySignalQueue.push(signal);\n}\n\nif (store.memorySignalQueue.length > 500) {\n  store.memorySignalQueue = store.memorySignalQueue.slice(-500);\n}\n\nreturn {\n  queued: Boolean(signal.event_text),\n  pending_count: store.memorySignalQueue.length,\n  accepted_signal: signal\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -624,
+        -192
+      ],
+      "id": "2bd7b378-909a-4cc7-9388-1e365bc367e5",
+      "name": "Queue Memory Signal"
+    },
+    {
+      "parameters": {
+        "respondWith": "allIncomingItems",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        -416,
+        -192
+      ],
+      "id": "9f655f78-0e63-45a5-b157-91f6f67083be",
+      "name": "Respond - Memory Signal"
+    },
+    {
+      "parameters": {
+        "triggerTimes": {
+          "item": [
+            {
+              "hour": 8
+            }
+          ]
+        }
+      },
+      "name": "Cron",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [
+        -1072,
+        32
+      ],
+      "id": "6ac47833-8f38-42cb-b3ef-c7f7c928f5fc"
+    },
+    {
+      "parameters": {},
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1072,
+        160
+      ],
+      "id": "15230ace-85d5-48cb-ae23-4cbc6f3fb5ab"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "087f6632-f4f3-4f3e-bf20-101633188fa8",
+              "name": "run_timestamp",
+              "value": "={{ $now.toISO() }}",
+              "type": "string"
+            },
+            {
+              "id": "655d2e34-2cea-4f26-9da6-1e27792db103",
+              "name": "notion_token",
+              "value": "={{ $env.NOTION_TOKEN || \"REPLACE_WITH_NOTION_TOKEN\" }}",
+              "type": "string"
+            },
+            {
+              "id": "9cec0cd7-3f3c-47dc-a9fe-44526bfb6c81",
+              "name": "memory_db_id",
+              "value": "={{ $env.NOTION_MEMORY_DB_ID || \"REPLACE_WITH_NOTION_MEMORY_DB_ID\" }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Set Distill Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -848,
+        96
+      ],
+      "id": "d32f0d6c-154e-45ff-b4be-35b180810052"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const cfg = $input.first().json;\nconst store = $getWorkflowStaticData('global');\nconst queued = Array.isArray(store.memorySignalQueue) ? store.memorySignalQueue : [];\nconst batch = queued.slice(-100);\n\nif (queued.length > 100) {\n  store.memorySignalQueue = queued.slice(0, queued.length - 100);\n} else {\n  store.memorySignalQueue = [];\n}\n\nreturn [{\n  json: {\n    run_timestamp: cfg.run_timestamp || new Date().toISOString(),\n    notion_token: cfg.notion_token,\n    memory_db_id: cfg.memory_db_id,\n    queued_count: batch.length,\n    signals: batch\n  }\n}];"
+      },
+      "name": "Load Memory Signal Batch",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -624,
+        96
+      ],
+      "id": "ca5d5544-df42-4e51-a95c-2203fe6da5f0"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const input = $input.first().json;\nconst signals = Array.isArray(input.signals) ? input.signals : [];\n\nif (!signals.length) {\n  return [{\n    json: {\n      noCandidates: true,\n      run_timestamp: input.run_timestamp,\n      queued_count: 0\n    }\n  }];\n}\n\nconst typeRules = [\n  { type: 'book', regex: /\\b(book|reading|read|author|novel)\\b/i, stale: 30 },\n  { type: 'preference', regex: /\\b(like|love|hate|prefer|favorite)\\b/i, stale: 180 },\n  { type: 'project', regex: /\\b(project|working on|building|shipping|launch)\\b/i, stale: 45 },\n  { type: 'person', regex: /\\b(friend|mom|dad|partner|colleague|team)\\b/i, stale: 120 },\n  { type: 'health', regex: /\\b(sleep|health|doctor|exercise|energy|anxious|tired)\\b/i, stale: 14 },\n];\n\nfunction classify(text) {\n  for (const rule of typeRules) {\n    if (rule.regex.test(text)) return { type: rule.type, stale: rule.stale };\n  }\n  return { type: 'fact', stale: 90 };\n}\n\nfunction extractSubject(text) {\n  const cleaned = text.replace(/\\s+/g, ' ').trim();\n  if (!cleaned) return 'general memory';\n\n  const separators = [' because ', ' but ', ' and ', '.', '!', '?'];\n  let subject = cleaned;\n  for (const sep of separators) {\n    const idx = subject.toLowerCase().indexOf(sep.trim());\n    if (idx > 20) {\n      subject = subject.slice(0, idx);\n      break;\n    }\n  }\n\n  if (subject.length > 80) subject = subject.slice(0, 80).trim();\n  return subject || 'general memory';\n}\n\nconst dedup = new Map();\nfor (const signal of signals) {\n  const text = String(signal.event_text || '').trim();\n  if (!text) continue;\n\n  const cls = classify(text);\n  const subject = extractSubject(text);\n  const key = (cls.type + '::' + subject).toLowerCase().replace(/[^a-z0-9:]+/g, '_').replace(/^_+|_+$/g, '');\n\n  const candidate = {\n    memory_key: key,\n    type: cls.type,\n    subject,\n    summary: text.slice(0, 500),\n    confidence: Number.isFinite(Number(signal.confidence)) ? Math.max(0, Math.min(1, Number(signal.confidence))) : 0.72,\n    last_seen: signal.timestamp || new Date().toISOString(),\n    stale_after_days: cls.stale,\n    status: 'active',\n    source: signal.source || 'poke',\n    tags: Array.isArray(signal.tags) ? signal.tags.slice(0, 10) : [],\n    notion_token: input.notion_token,\n    memory_db_id: input.memory_db_id,\n    run_timestamp: input.run_timestamp\n  };\n\n  dedup.set(key, candidate);\n}\n\nconst out = Array.from(dedup.values())\n  .slice(0, 10)\n  .map((item) => ({ json: item }));\n\nif (!out.length) {\n  return [{\n    json: {\n      noCandidates: true,\n      run_timestamp: input.run_timestamp,\n      queued_count: signals.length\n    }\n  }];\n}\n\nreturn out;"
+      },
+      "name": "Extract Memory Candidates",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -416,
+        96
+      ],
+      "id": "3466f98a-181f-41bd-a13d-0cb0e7bb33fa"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.noCandidates }}"
+            }
+          ]
+        }
+      },
+      "name": "No Candidates?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        -192,
+        96
+      ],
+      "id": "90489e93-e4fd-4518-beaf-d46cd11614dc"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const runTimestamp = $input.first().json.run_timestamp || new Date().toISOString();\nreturn [{\n  json: {\n    message: `[system] memory distiller daily check\\n\\nRun timestamp: ${runTimestamp}\\nResult: no queued memory signals to distill today.`\n  }\n}];"
+      },
+      "name": "Build Empty Distill Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        48,
+        16
+      ],
+      "id": "fcfdf105-6250-4002-a4c5-b4100e0d08a4"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://poke.com/api/v1/inbound-sms/webhook",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "message",
+              "value": "={{ $json.message }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Send Empty Summary to Poke",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        256,
+        16
+      ],
+      "id": "9420d0c5-8ace-4d4e-90df-df956c11744c",
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "H3j7klwNJz7CiJaD",
+          "name": "Bearer Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://api.notion.com/v1/databases/' + $json.memory_db_id + '/query' }}",
+        "authentication": "none",
+        "sendHeaders": true,
+        "specifyHeaders": "keypair",
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $json.notion_token }}"
+            },
+            {
+              "name": "Notion-Version",
+              "value": "2022-06-28"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ { page_size: 1, filter: { property: 'memory_key', rich_text: { equals: $json.memory_key } } } }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "name": "Query Existing Memory",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        32,
+        224
+      ],
+      "id": "7efa5144-5839-43f2-91cf-31459aa940f4",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "numberInputs": 2,
+        "options": {}
+      },
+      "name": "Merge Candidate + Query",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        256,
+        224
+      ],
+      "id": "2cf3d6ad-9696-4121-bf4c-6f9f995526f3"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const existingPageId = Array.isArray($json.results) && $json.results.length > 0 ? $json.results[0].id : null;\n\nlet queryError = null;\nif ($json.error) {\n  const raw = $json.error;\n  queryError = typeof raw === 'string' ? raw : (raw.message || JSON.stringify(raw));\n}\n\nreturn {\n  ...$json,\n  existingPageId,\n  queryError\n};"
+      },
+      "name": "Decide Create or Update",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        224
+      ],
+      "id": "72c1657a-a31d-4776-a59d-c59aafbd68ed"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ !!$json.existingPageId }}"
+            }
+          ]
+        }
+      },
+      "name": "Existing Memory?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        688,
+        224
+      ],
+      "id": "739c9904-2f41-496c-965f-6e15f89795c1"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.notion.com/v1/pages",
+        "authentication": "none",
+        "sendHeaders": true,
+        "specifyHeaders": "keypair",
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $json.notion_token }}"
+            },
+            {
+              "name": "Notion-Version",
+              "value": "2022-06-28"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ { parent: { database_id: $json.memory_db_id }, properties: { Name: { title: [{ text: { content: $json.subject } }] }, memory_key: { rich_text: [{ text: { content: $json.memory_key } }] }, type: { select: { name: $json.type } }, summary: { rich_text: [{ text: { content: $json.summary } }] }, confidence: { number: Number($json.confidence) }, last_seen: { date: { start: $json.last_seen } }, stale_after_days: { number: Number($json.stale_after_days) }, status: { select: { name: 'active' } }, source: { rich_text: [{ text: { content: $json.source } }] }, tags: { multi_select: ($json.tags || []).map((t) => ({ name: String(t).slice(0, 100) })) } } } }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "name": "Create Memory Page",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        928,
+        320
+      ],
+      "id": "85b9b798-eb9c-4024-98bb-3dc48a9f9631",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ 'https://api.notion.com/v1/pages/' + $json.existingPageId }}",
+        "authentication": "none",
+        "sendHeaders": true,
+        "specifyHeaders": "keypair",
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $json.notion_token }}"
+            },
+            {
+              "name": "Notion-Version",
+              "value": "2022-06-28"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ { properties: { summary: { rich_text: [{ text: { content: $json.summary } }] }, confidence: { number: Number($json.confidence) }, last_seen: { date: { start: $json.last_seen } }, stale_after_days: { number: Number($json.stale_after_days) }, status: { select: { name: 'active' } }, source: { rich_text: [{ text: { content: $json.source } }] }, tags: { multi_select: ($json.tags || []).map((t) => ({ name: String(t).slice(0, 100) })) } } } }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "name": "Update Memory Page",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        928,
+        128
+      ],
+      "id": "818873b8-9fdb-430e-9f48-5c17835291fa",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const source = $('Decide Create or Update').item.json;\nconst action = source.existingPageId ? 'updated' : 'created';\n\nlet error = null;\nif ($json.error) {\n  const raw = $json.error;\n  error = typeof raw === 'string' ? raw : (raw.message || JSON.stringify(raw));\n}\n\nreturn {\n  action,\n  ok: !error,\n  error,\n  page_id: $json.id || source.existingPageId || null,\n  memory_key: source.memory_key,\n  type: source.type,\n  subject: source.subject\n};"
+      },
+      "name": "Normalize Upsert Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1152,
+        224
+      ],
+      "id": "2f754fbe-bd29-4e7f-a278-9d66eba80a1a"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const rows = $input.all().map((i) => i.json);\nconst created = rows.filter((r) => r.ok && r.action === 'created');\nconst updated = rows.filter((r) => r.ok && r.action === 'updated');\nconst failed = rows.filter((r) => !r.ok);\n\nconst sample = rows.slice(0, 8).map((r) => {\n  const status = r.ok ? (r.action === 'created' ? 'CREATED' : 'UPDATED') : 'FAILED';\n  return `- ${status}: [${r.type}] ${r.subject}`;\n}).join('\\n');\n\nconst message = `[system] memory distiller daily check\\n\\nTotal candidates: ${rows.length}\\nCreated: ${created.length}\\nUpdated: ${updated.length}\\nFailed: ${failed.length}\\n\\n${sample || '- No candidate details'}\\n\\n${failed.length ? 'Status: some memory upserts failed. Check n8n execution logs.' : 'Status: memory distillation completed successfully.'}`;\n\nreturn [{ json: { message } }];"
+      },
+      "name": "Build Distill Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1376,
+        224
+      ],
+      "id": "572702d6-0bf4-4ea7-ac2a-9ea7937660db"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://poke.com/api/v1/inbound-sms/webhook",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "message",
+              "value": "={{ $json.message }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Send Distill Summary to Poke",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1584,
+        224
+      ],
+      "id": "35c2efe0-7943-468a-a1d1-4b3f1d6ef4e0",
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "H3j7klwNJz7CiJaD",
+          "name": "Bearer Auth account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook - Memory Signal": {
+      "main": [
+        [
+          {
+            "node": "Normalize Memory Signal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Memory Signal": {
+      "main": [
+        [
+          {
+            "node": "Queue Memory Signal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Queue Memory Signal": {
+      "main": [
+        [
+          {
+            "node": "Respond - Memory Signal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cron": {
+      "main": [
+        [
+          {
+            "node": "Set Distill Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set Distill Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Distill Config": {
+      "main": [
+        [
+          {
+            "node": "Load Memory Signal Batch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Memory Signal Batch": {
+      "main": [
+        [
+          {
+            "node": "Extract Memory Candidates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Memory Candidates": {
+      "main": [
+        [
+          {
+            "node": "No Candidates?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "No Candidates?": {
+      "main": [
+        [
+          {
+            "node": "Build Empty Distill Summary",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Query Existing Memory",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge Candidate + Query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Empty Distill Summary": {
+      "main": [
+        [
+          {
+            "node": "Send Empty Summary to Poke",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Existing Memory": {
+      "main": [
+        [
+          {
+            "node": "Merge Candidate + Query",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Candidate + Query": {
+      "main": [
+        [
+          {
+            "node": "Decide Create or Update",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decide Create or Update": {
+      "main": [
+        [
+          {
+            "node": "Existing Memory?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Existing Memory?": {
+      "main": [
+        [
+          {
+            "node": "Update Memory Page",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create Memory Page",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Memory Page": {
+      "main": [
+        [
+          {
+            "node": "Normalize Upsert Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Memory Page": {
+      "main": [
+        [
+          {
+            "node": "Normalize Upsert Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Upsert Result": {
+      "main": [
+        [
+          {
+            "node": "Build Distill Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Distill Summary": {
+      "main": [
+        [
+          {
+            "node": "Send Distill Summary to Poke",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": {},
+  "tags": []
+}

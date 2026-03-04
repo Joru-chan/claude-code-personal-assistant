@@ -1,0 +1,327 @@
+{
+  "name": "Memory Recall Brief to Poke",
+  "description": null,
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "memory-recall-brief",
+        "authentication": "headerAuth",
+        "options": {
+          "responseData": "={ \"ok\": true }",
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -896,
+        16
+      ],
+      "id": "104f17ed-09bc-4797-85f8-b1ce09f96f01",
+      "name": "Webhook - Recall Request",
+      "webhookId": "memory-recall-brief",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "zw7qjmCFIsQxFnES",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -896,
+        144
+      ],
+      "id": "8f24e71c-96cb-4b22-95f0-f490bc89a5bc"
+    },
+    {
+      "parameters": {
+        "triggerTimes": {
+          "item": [
+            {
+              "hour": 9
+            }
+          ]
+        }
+      },
+      "name": "Cron",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [
+        -896,
+        272
+      ],
+      "id": "5a012886-9dd4-48b6-bb2f-39e420c8f3da"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "0601c952-ce5a-467e-b664-b8cc0d5958e5",
+              "name": "run_timestamp",
+              "value": "={{ $now.toISO() }}",
+              "type": "string"
+            },
+            {
+              "id": "1a530ce4-bff9-4b6e-a027-7dd7584937f8",
+              "name": "notion_token",
+              "value": "={{ $env.NOTION_TOKEN || \"REPLACE_WITH_NOTION_TOKEN\" }}",
+              "type": "string"
+            },
+            {
+              "id": "2f06fb36-ed95-4102-be4a-2e6a7569d5b7",
+              "name": "memory_db_id",
+              "value": "={{ $env.NOTION_MEMORY_DB_ID || \"REPLACE_WITH_NOTION_MEMORY_DB_ID\" }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Set Recall Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -672,
+        144
+      ],
+      "id": "19395a75-7b7e-4caf-8be9-734ba0122ef6"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const body = $json.body || {};\nconst query = String(body.query || body.topic || '').trim();\nconst requestedLimit = Number(body.limit ?? 8);\n\nreturn {\n  run_timestamp: $json.run_timestamp || new Date().toISOString(),\n  notion_token: $json.notion_token,\n  memory_db_id: $json.memory_db_id,\n  query,\n  limit: Number.isFinite(requestedLimit) ? Math.max(1, Math.min(20, requestedLimit)) : 8\n};"
+      },
+      "name": "Build Recall Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -448,
+        144
+      ],
+      "id": "b19296f3-e8da-4b14-b935-b6f2268d7f2d"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://api.notion.com/v1/databases/' + $json.memory_db_id + '/query' }}",
+        "authentication": "none",
+        "sendHeaders": true,
+        "specifyHeaders": "keypair",
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $json.notion_token }}"
+            },
+            {
+              "name": "Notion-Version",
+              "value": "2022-06-28"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ (() => { const q = ($json.query || '').trim(); const limit = Number($json.limit || 8); const payload = { page_size: Math.max(1, Math.min(20, limit)), sorts: [{ property: 'last_seen', direction: 'descending' }] }; const active = { property: 'status', select: { equals: 'active' } }; if (!q) { payload.filter = active; return payload; } payload.filter = { and: [active, { or: [ { property: 'Name', title: { contains: q } }, { property: 'summary', rich_text: { contains: q } }, { property: 'type', select: { equals: q } } ] }] }; return payload; })() }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "name": "Query Memory DB",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -224,
+        144
+      ],
+      "id": "d085934d-0a52-40dd-8e7e-df8a2c80f74a",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "numberInputs": 2,
+        "options": {}
+      },
+      "name": "Merge Recall Input + Query",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        0,
+        144
+      ],
+      "id": "506a2f65-bf30-4346-923f-fcf011f75781"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "function plainText(rich) {\n  if (!Array.isArray(rich)) return '';\n  return rich.map((x) => x.plain_text || '').join('').trim();\n}\n\nfunction getTitle(props, key) {\n  const value = props[key];\n  if (!value || !Array.isArray(value.title)) return '';\n  return plainText(value.title);\n}\n\nfunction getRich(props, key) {\n  const value = props[key];\n  if (!value || !Array.isArray(value.rich_text)) return '';\n  return plainText(value.rich_text);\n}\n\nfunction getSelect(props, key) {\n  const value = props[key];\n  return value && value.select ? String(value.select.name || '').trim() : '';\n}\n\nfunction getNumber(props, key) {\n  const value = props[key];\n  return value && typeof value.number === 'number' ? value.number : null;\n}\n\nfunction getDate(props, key) {\n  const value = props[key];\n  return value && value.date ? value.date.start : null;\n}\n\nconst query = ($json.query || '').trim();\nconst results = Array.isArray($json.results) ? $json.results : [];\nconst now = new Date();\n\nconst parsed = results.map((page) => {\n  const props = page.properties || {};\n  const subject = getTitle(props, 'Name') || getRich(props, 'subject') || 'untitled memory';\n  const summary = getRich(props, 'summary');\n  const type = getSelect(props, 'type') || 'fact';\n  const lastSeen = getDate(props, 'last_seen');\n  const staleAfter = getNumber(props, 'stale_after_days');\n\n  let ageDays = null;\n  if (lastSeen) {\n    const then = new Date(lastSeen);\n    if (!Number.isNaN(then.getTime())) {\n      ageDays = Math.floor((now.getTime() - then.getTime()) / (1000 * 60 * 60 * 24));\n    }\n  }\n\n  const isStale = Number.isFinite(ageDays) && Number.isFinite(staleAfter) && ageDays > staleAfter;\n\n  return {\n    type,\n    subject,\n    summary,\n    ageDays,\n    staleAfter,\n    isStale\n  };\n});\n\nconst fresh = parsed.filter((m) => !m.isStale);\nconst stale = parsed.filter((m) => m.isStale);\nconst ordered = [...fresh, ...stale].slice(0, Number($json.limit || 8));\n\nconst bullets = ordered.map((m) => {\n  const staleFlag = m.isStale ? '[STALE] ' : '';\n  const age = Number.isFinite(m.ageDays) ? `${m.ageDays}d ago` : 'no last_seen';\n  const detail = m.summary ? ` - ${m.summary}` : '';\n  return `- ${staleFlag}[${m.type}] ${m.subject} (${age})${detail}`;\n}).join('\\n');\n\nconst message = `[system] memory recall brief\\n\\nQuery: ${query || '(none)'}\\nMatches: ${parsed.length}\\nFresh: ${fresh.length}\\nStale: ${stale.length}\\n\\n${bullets || '- No active memory found for this query.'}\\n\\n${stale.length ? 'Note: stale memories are marked and should be corrected or archived.' : 'Note: no stale memory detected in this brief.'}`;\n\nreturn {\n  message,\n  query,\n  matches: parsed.length,\n  stale: stale.length\n};"
+      },
+      "name": "Build Recall Brief",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        144
+      ],
+      "id": "4903d116-f438-4185-90cb-3f472eaebf2c"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://poke.com/api/v1/inbound-sms/webhook",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "message",
+              "value": "={{ $json.message }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Send Recall Brief to Poke",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        448,
+        144
+      ],
+      "id": "45af7bb5-367e-43a6-9ad1-e13076fd54b4",
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "H3j7klwNJz7CiJaD",
+          "name": "Bearer Auth account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook - Recall Request": {
+      "main": [
+        [
+          {
+            "node": "Set Recall Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set Recall Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cron": {
+      "main": [
+        [
+          {
+            "node": "Set Recall Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Recall Config": {
+      "main": [
+        [
+          {
+            "node": "Build Recall Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Recall Input": {
+      "main": [
+        [
+          {
+            "node": "Query Memory DB",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge Recall Input + Query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Memory DB": {
+      "main": [
+        [
+          {
+            "node": "Merge Recall Input + Query",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Recall Input + Query": {
+      "main": [
+        [
+          {
+            "node": "Build Recall Brief",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Recall Brief": {
+      "main": [
+        [
+          {
+            "node": "Send Recall Brief to Poke",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": {},
+  "tags": []
+}
