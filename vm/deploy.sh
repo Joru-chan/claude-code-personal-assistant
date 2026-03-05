@@ -79,28 +79,13 @@ HEALTH_URL="${VM_HEALTH_URL:-https://mcp-lina.duckdns.org/health}"
 
 echo "MCP health check: $MCP_URL"
 if command -v curl >/dev/null 2>&1; then
-  mcp_payload='{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"health_check","arguments":{}}}'
-  mcp_status=""
-  mcp_first_line=""
-  mcp_attempts=10
-  mcp_sleep=0.5
-  for attempt in $(seq 1 "$mcp_attempts"); do
-    mcp_response=$(curl -sS -w "\nHTTP_STATUS:%{http_code}\n" \
-    -H "Content-Type: application/json" \
-    -H "Accept: application/json, text/event-stream" \
-    -d "$mcp_payload" \
-    "$MCP_URL" || true)
-    mcp_status=$(printf "%s" "$mcp_response" | tail -n1 | sed "s/HTTP_STATUS://")
-    echo "MCP attempt $attempt/$mcp_attempts: status ${mcp_status:-unknown}"
-    if [[ "${mcp_status:-}" == 2* ]]; then
-      mcp_body=$(printf "%s" "$mcp_response" | sed '$d')
-      mcp_first_line=$(printf "%s" "$mcp_body" | awk 'NF{print; exit}')
-      break
-    fi
-    sleep "$mcp_sleep"
-  done
-
-  if [[ "${mcp_status:-}" != 2* ]]; then
+  if "$SCRIPT_DIR/mcp_curl.sh" --list --raw >/tmp/mcp-list-response.log 2>/tmp/mcp-list-error.log; then
+    echo "MCP reachable via tools/list."
+    echo "MCP response preview:"
+    sed -n '1,3p' /tmp/mcp-list-response.log
+  else
+    echo "WARN: MCP tools/list failed."
+    sed -n '1,20p' /tmp/mcp-list-error.log || true
     echo "WARN: MCP health check failed; falling back to HTTP /health."
     if [[ "$HEALTH_URL" == *"/mcp" ]]; then
       echo "WARN: HEALTH_URL ends with /mcp. Prefer /health for HTTP checks."
@@ -111,9 +96,6 @@ if command -v curl >/dev/null 2>&1; then
     health_first_line=$(printf "%s" "$health_response" | head -n1)
     echo "Health status: ${health_status:-unknown}"
     echo "Health body (first line): ${health_first_line:-<empty>}"
-  else
-    echo "MCP healthy: ${mcp_status:-unknown}"
-    echo "MCP body (first line): ${mcp_first_line:-<empty>}"
   fi
 else
   echo "WARN: curl not found; skipping health check."

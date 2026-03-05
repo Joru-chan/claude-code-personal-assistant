@@ -68,12 +68,12 @@ All deployment and management scripts are located in the `vm/` directory:
 
 ### For Automated Deployments:
 ```bash
-# 1. Make changes to vm_server code
+# 1. Make changes to vm_server code or workflow JSON
 vim vm_server/server.py
 
 # 2. Commit and push
 git add vm_server/
-git commit -m "Update MCP server"
+git commit -m "Update memory MCP"
 git push origin main
 
 # 3. Deployment happens automatically!
@@ -101,15 +101,15 @@ vim vm_server/server.py
 
 ## 🛠️ What's Deployed
 
-The `vm_server/` directory contains a FastMCP server with various tools:
-- Health monitoring
-- Notion integration
-- Weather information
-- Receipt parsing for pantry inventory
-- Serendipity event tracking
-- And more...
+The `vm_server/` directory contains a FastMCP server with a minimal memory-only
+toolset used by Poke:
+- `call_memory_distiller_daily`
+- `call_memory_recall_brief_to_poke`
 
-See [`vm_server/README.md`](vm_server/README.md) for details about the MCP server.
+See these docs for details:
+- [`vm_server/README.md`](vm_server/README.md)
+- [`docs/POKE_MEMORY_WORKFLOWS.md`](docs/POKE_MEMORY_WORKFLOWS.md)
+- [`docs/MEMORY_MCP_OPERATIONS.md`](docs/MEMORY_MCP_OPERATIONS.md)
 
 ## 🔍 Monitoring
 

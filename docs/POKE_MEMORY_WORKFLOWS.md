@@ -1,5 +1,9 @@
 # Poke Memory Workflows (n8n + Notion)
 
+Operational runbook:
+
+- `docs/MEMORY_MCP_OPERATIONS.md`
+
 This repository now includes two workflows:
 
 - `workflows/Memory_Distiller_Daily.json`
@@ -50,6 +54,11 @@ If your MCP server is configured with
 - Marks stale rows in the message when `ageDays > stale_after_days`.
 - Sends a compact recall brief to Poke.
 
+### Activation requirement
+
+For production webhook URLs to work, both workflows must be active (`"active": true`)
+in n8n.
+
 ## 3) Required Configuration in n8n
 
 Both workflows use these values in `Set ... Config` nodes:
@@ -69,7 +78,13 @@ You can replace them in-node, or provide env vars:
 
 ## 4) Security
 
-Both webhook triggers are protected with existing `Header Auth account` credentials.
+Both webhook triggers are protected with existing `Header Auth account`
+(`httpHeaderAuth`) credentials.
+
+MCP must send the same header name/value via:
+
+- `N8N_WEBHOOK_AUTH_HEADER`
+- `N8N_WEBHOOK_AUTH_VALUE`
 
 ## 5) Test Payloads
 
@@ -78,7 +93,7 @@ Both webhook triggers are protected with existing `Header Auth account` credenti
 ```bash
 curl -X POST "https://mcp-lina.duckdns.org/n8n/webhook/memory-signal" \
   -H "Content-Type: application/json" \
-  -H "Authorization: <your webhook header auth>" \
+  -H "<header-name-from-Header-Auth-account>: <header-value-from-Header-Auth-account>" \
   -d '{
     "event_text": "I stopped reading Atomic Habits and started a sci-fi novel last week",
     "source": "poke",
@@ -92,7 +107,7 @@ curl -X POST "https://mcp-lina.duckdns.org/n8n/webhook/memory-signal" \
 ```bash
 curl -X POST "https://mcp-lina.duckdns.org/n8n/webhook/memory-recall-brief" \
   -H "Content-Type: application/json" \
-  -H "Authorization: <your webhook header auth>" \
+  -H "<header-name-from-Header-Auth-account>: <header-value-from-Header-Auth-account>" \
   -d '{
     "query": "books",
     "limit": 6

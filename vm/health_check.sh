@@ -17,5 +17,5 @@ HEALTH_URL="${VM_HEALTH_URL:-https://mcp-lina.duckdns.org/health}"
 echo "== HTTP health =="
 curl -i "$HEALTH_URL" || true
 echo ""
-echo "== MCP hello =="
-./vm/mcp_curl.sh hello '{"name":"Jordane"}'
+echo "== MCP tools/list =="
+./vm/mcp_curl.sh --list

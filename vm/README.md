@@ -17,7 +17,7 @@ restart the MCP server service.
 - `vm/deploy.sh` : rsync code to VM + restart service + health check
 - `vm/test_hook.sh` : test the post-push hook without actually pushing
 - `vm/pull_server_from_vm.sh` : pull the live server code from the VM
-- `vm/mcp_curl.sh` : call MCP tools with correct headers
+- `vm/mcp_curl.sh` : call MCP tools (auto-handles MCP session negotiation)
 - `vm/health_check.sh` : canonical health check (HTTP + MCP)
 
 ## Workflows
@@ -82,23 +82,27 @@ Use this to bootstrap or recover the server code from the live VM:
 ```
 
 ## Server environment
-The current server expects these env vars (set on the VM, not in git):
-- `MOOD_MEMORY_WEBHOOK_URL`
-- `SERENDIPITY_EVENT_WEBHOOK_URL`
+The current memory-only server expects these env vars (set on VM, not in git):
+- `MEMORY_DISTILLER_WEBHOOK_URL`
+- `MEMORY_SIGNAL_WEBHOOK_URL` (optional alias for compatibility)
+- `MEMORY_RECALL_WEBHOOK_URL`
+- `N8N_WEBHOOK_AUTH_HEADER`
+- `N8N_WEBHOOK_AUTH_VALUE`
 - `PORT` (default `8000`)
-- `MCP_SYSTEM_OVERVIEW.md` at `/home/ubuntu/MCP_SYSTEM_OVERVIEW.md`
-- `ADMIN_TOKEN` (required for admin_* MCP tools)
+
+Detailed setup and live runbook:
+- `docs/MEMORY_MCP_OPERATIONS.md`
 
 ## Health check
-- Primary: `GET /health` (returns 200 with `{\"ok\": true}`).
-- Fallback (if /health is unavailable): call the `health_check` tool via `/mcp`.
+- Primary MCP check: `./vm/mcp_curl.sh --list`.
+- Secondary HTTP check: `GET /health` if exposed by your reverse proxy.
 
 ## Notes
 - `vm/config.sh` is local-only and gitignored.
 - Recommended health check URL: `https://mcp-lina.duckdns.org/health`.
 - The health check URL is read from `VM_HEALTH_URL` (defaults to `/health`).
 - Set `VM_HEALTH_URL` in `vm/config.sh` if your deployment uses a different URL.
-- Deploy verifies health by calling the MCP `health_check` tool via `VM_MCP_URL`.
+- Deploy verifies MCP reachability via JSON-RPC on `VM_MCP_URL`.
   If that fails, it falls back to the HTTP `/health` endpoint.
 - Deploy retries the MCP health check for a few seconds; initial 502s during restart can be normal.
 - Deploy runs a dependency sync if `requirements.txt` exists in `VM_DEST_DIR`
@@ -108,10 +112,10 @@ The current server expects these env vars (set on the VM, not in git):
 ## MCP curl helper
 Use the wrapper to hit MCP tools with the correct headers:
 ```bash
-./vm/mcp_curl.sh health_check
-./vm/mcp_curl.sh tool_requests_latest '{"limit":5}'
 ./vm/mcp_curl.sh --list
 ./vm/mcp_curl.sh --list --local
+./vm/mcp_curl.sh call_memory_distiller_daily '{"event_text":"memory test"}'
+./vm/mcp_curl.sh call_memory_recall_brief_to_poke '{"query":"books","limit":4}'
 ```
 
 ## Add a new tool module
