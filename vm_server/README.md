@@ -1,80 +1,52 @@
 # VM MCP Server
 
-This folder contains the exact server code deployed to the VM at
+This folder contains the MCP server code deployed to the VM at
 `/home/ubuntu/mcp-server-template/src`.
 
-## Adding a new tool
-1) Create a module in `vm_server/tools/` with a `register(mcp: FastMCP)` function.
-2) Decorate tool functions with `@mcp.tool` inside `register`.
-3) Import the module in `vm_server/tools/registry.py` and add it to the list.
+Current design is intentionally minimal: the server exposes only two tools,
+both used to trigger your n8n memory workflows for Poke.
 
-Example skeleton:
-```python
-from fastmcp import FastMCP
+## Exposed tools
 
-def register(mcp: FastMCP) -> None:
-    @mcp.tool
-    def my_tool() -> dict:
-        return {"summary": "ok", "result": {}, "next_actions": [], "errors": []}
-```
+1) `call_memory_distiller_daily`
+- Sends a memory signal to the `memory-signal` webhook.
+- Use when Poke wants to store a memory signal for later distillation.
 
-## Test hello tool (remote)
+2) `call_memory_recall_brief_to_poke`
+- Triggers the `memory-recall-brief` webhook.
+- Use when Poke wants a compact recall summary.
+
+## Required env vars on VM
+
+- `MEMORY_DISTILLER_WEBHOOK_URL`
+  - Example: `https://mcp-lina.duckdns.org/n8n/webhook/memory-signal`
+  - Backward-compatible alias: `MEMORY_SIGNAL_WEBHOOK_URL`
+- `MEMORY_RECALL_WEBHOOK_URL`
+  - Example: `https://mcp-lina.duckdns.org/n8n/webhook/memory-recall-brief`
+
+Optional webhook auth header:
+- `N8N_WEBHOOK_AUTH_HEADER` (default: `Authorization`)
+- `N8N_WEBHOOK_AUTH_VALUE` (header value sent to both webhook calls)
+
+## Quick checks
+
+List tools:
 ```bash
 curl -sS https://mcp-lina.duckdns.org/mcp \
   -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"hello","arguments":{"name":"Jordane"}}}'
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
 ```
 
-## Tool Requests (Notion)
-Required env vars on the VM service:
-- `NOTION_TOKEN`
-- `TOOL_REQUESTS_DB_ID`
-
-Latest items:
+Call distiller signal tool:
 ```bash
 curl -sS https://mcp-lina.duckdns.org/mcp \
   -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"tool_requests_latest","arguments":{"limit":10,"statuses":["new","triaging"]}}}'
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"call_memory_distiller_daily","arguments":{"event_text":"Jordane switched from book A to book B","tags":["books"],"confidence":0.82}}}'
 ```
 
-Search by keyword:
+Call recall brief tool:
 ```bash
 curl -sS https://mcp-lina.duckdns.org/mcp \
   -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"tool_requests_search","arguments":{"query":"calendar","limit":10}}}'
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"call_memory_recall_brief_to_poke","arguments":{"query":"books","limit":6}}}'
 ```
-
-Safety: read-only tools (no writes).
-
-## Mood memory bridge
-`create_mood_memory` now forwards to:
-
-- Legacy mood webhook (Google Sheet pipeline): `MOOD_MEMORY_WEBHOOK_URL`
-- New memory distiller pipeline: `MEMORY_SIGNAL_WEBHOOK_URL`
-
-Set both on the VM service if you want dual-write behavior.
-
-## Pantry inventory (Receipt photo)
-Required env vars on the VM service:
-- `NOTION_TOKEN`
-- `PANTRY_DB_ID`
-
-Optional property mapping env vars (defaults in code):
-- `PANTRY_PROP_NAME`
-- `PANTRY_PROP_QUANTITY`
-- `PANTRY_PROP_UNIT`
-- `PANTRY_PROP_CATEGORY`
-- `PANTRY_PROP_PURCHASE_DATE`
-- `PANTRY_PROP_STORE`
-
-Usage (dry-run preview):
-```bash
-curl -sS https://mcp-lina.duckdns.org/mcp \
-  -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"receipt_photo_pantry_inventory","arguments":{"receipt_text":"2x Milk $6.00\nApples $4.99","store":"Monoprix","purchase_date":"2026-01-16","dry_run":true}}}'
-```
-
-## Health check
-- Primary: MCP JSON-RPC via `/mcp` (for example `tools/list`).
-- Optional: `GET /health` only if provided by your reverse proxy/infrastructure.
-- Fallback: call the `health_check` tool via `/mcp`.
