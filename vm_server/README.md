@@ -46,6 +46,14 @@ curl -sS https://mcp-lina.duckdns.org/mcp \
 
 Safety: read-only tools (no writes).
 
+## Mood memory bridge
+`create_mood_memory` now forwards to:
+
+- Legacy mood webhook (Google Sheet pipeline): `MOOD_MEMORY_WEBHOOK_URL`
+- New memory distiller pipeline: `MEMORY_SIGNAL_WEBHOOK_URL`
+
+Set both on the VM service if you want dual-write behavior.
+
 ## Pantry inventory (Receipt photo)
 Required env vars on the VM service:
 - `NOTION_TOKEN`

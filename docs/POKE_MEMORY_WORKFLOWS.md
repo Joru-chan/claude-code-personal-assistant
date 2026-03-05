@@ -38,6 +38,9 @@ These names are used directly in workflow JSON bodies for Notion API calls.
   - Update page if existing
 - Sends summary to Poke using the existing webhook pattern.
 
+If your MCP server has `MEMORY_SIGNAL_WEBHOOK_URL` set to this endpoint, calls to
+`create_mood_memory` automatically generate memory signals for distillation.
+
 ### Memory Recall Brief to Poke
 
 - Recall endpoint: `POST /n8n/webhook/memory-recall-brief`
